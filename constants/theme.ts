@@ -1,30 +1,82 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * iOS-aligned design tokens for Pickly.
+ *
+ * Color values mirror Apple's Human Interface Guidelines:
+ * https://developer.apple.com/design/human-interface-guidelines/color
  */
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// iOS Blue – primary interactive color
+const IOS_BLUE = '#007AFF';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    /** Primary text – `label` */
+    text: '#000000',
+    /** Secondary text – `secondaryLabel` */
+    textSecondary: '#8E8E93',
+    /** Screen / view background */
+    background: '#FFFFFF',
+    /** Grouped table / section background – `systemGroupedBackground` */
+    groupBackground: '#F2F2F7',
+    /** Card / cell surface – `secondarySystemGroupedBackground` */
+    card: '#FFFFFF',
+    /** iOS Blue for interactive controls */
+    tint: IOS_BLUE,
+    /** Subtle border */
+    border: '#E5E5EA',
+    /** Inset separator with left indent – `separator` */
+    separator: 'rgba(60,60,67,0.12)',
+    /** Inactive tab icon */
+    tabIconDefault: '#8E8E93',
+    /** Active tab icon */
+    tabIconSelected: IOS_BLUE,
+    // Legacy alias used by existing icon components
+    icon: '#8E8E93',
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    text: '#FFFFFF',
+    textSecondary: '#8E8E93',
+    background: '#000000',
+    groupBackground: '#1C1C1E',
+    card: '#2C2C2E',
+    tint: IOS_BLUE,
+    border: '#3A3A3C',
+    separator: 'rgba(84,84,88,0.36)',
+    tabIconDefault: '#8E8E93',
+    tabIconSelected: IOS_BLUE,
+    icon: '#8E8E93',
   },
+};
+
+/** iOS typography scale matching Apple HIG */
+export const Typography = {
+  largeTitle: { fontSize: 34, fontWeight: '700' as const, lineHeight: 41 },
+  title1:     { fontSize: 28, fontWeight: '700' as const, lineHeight: 34 },
+  title2:     { fontSize: 22, fontWeight: '700' as const, lineHeight: 28 },
+  headline:   { fontSize: 17, fontWeight: '600' as const, lineHeight: 22 },
+  body:       { fontSize: 17, fontWeight: '400' as const, lineHeight: 22 },
+  subhead:    { fontSize: 15, fontWeight: '400' as const, lineHeight: 20 },
+  footnote:   { fontSize: 13, fontWeight: '400' as const, lineHeight: 18 },
+  caption:    { fontSize: 12, fontWeight: '400' as const, lineHeight: 16 },
+};
+
+/** iOS status colors */
+export const StatusColors = {
+  decided:  '#34C759',
+  rejected: '#FF3B30',
+  thinking: '#FF9500',
+};
+
+/** Shared spacing constants */
+export const Spacing = {
+  screenHorizontal: 16,
+  cellVertical: 12,
+  cardRadius: 12,
+  groupRadius: 10,
+  buttonRadiusSm: 10,
+  buttonRadiusMd: 12,
 };
 
 export const Fonts = Platform.select({

@@ -1,98 +1,919 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import {
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  View,
+  Image,
+  Animated,
+  Dimensions,
+  Modal,
+  Alert,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Link, router } from 'expo-router';
+import { useState, useMemo, useCallback, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { useCollectionStore, useCardStore, useAppStore, useCacheStore } from '@/store';
+import { Colors, StatusColors, Spacing, Typography } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { hapticLight, hapticWarning } from '@/utils/haptics';
+import { UNCATEGORIZED_ID, UNCATEGORIZED_ICON, UNCATEGORIZED_LABEL } from '@/constants/collections';
+import AdBanner from '@/components/ad-banner';
+import type { Card, CardStatus, Collection } from '@/types';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const DRAWER_WIDTH = SCREEN_WIDTH * 0.75;
+const GRID_PADDING = Spacing.screenHorizontal;
+const GRID_GAP = 8;
+const GRID2_CARD_WIDTH = Math.floor((SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP) / 2);
+
+// List thumbnail dimensions per iOS HIG (72 pt)
+const LIST_THUMB_SIZE = 72;
+const LIST_THUMB_RADIUS = 8;
+
+type ViewMode = 'grid1' | 'grid2' | 'list';
+
+const VIEW_MODE_ICONS: Record<ViewMode, string> = {
+  grid1: '▤',
+  grid2: '⊞',
+  list: '≡',
+};
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
+  const selectedCollectionId = useAppStore((state) => state.selectedCollectionId);
+  const setSelectedCollectionId = useAppStore((state) => state.setSelectedCollectionId);
+
+  const collections = useCollectionStore((state) => state.collections);
+  const allCards = useCardStore((state) => state.cards);
+  const deleteCard = useCardStore((state) => state.deleteCard);
+  const cacheEntries = useCacheStore((state) => state.entries);
+
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('grid1');
+  const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+
+  // Filter cards by selected collection
+  const filteredCards = useMemo(() => {
+    let cards: typeof allCards;
+    if (!selectedCollectionId) {
+      cards = allCards;
+    } else {
+      cards = allCards.filter((c) => c.collectionId === selectedCollectionId);
+    }
+    return [...cards].sort((a, b) => b.createdAt - a.createdAt);
+  }, [allCards, selectedCollectionId]);
+
+  const selectedCollection = useMemo(() => {
+    if (!selectedCollectionId) return null;
+    if (selectedCollectionId === UNCATEGORIZED_ID) {
+      return { icon: UNCATEGORIZED_ICON, name: UNCATEGORIZED_LABEL } as Collection;
+    }
+    return collections.find((c) => c.id === selectedCollectionId) ?? null;
+  }, [collections, selectedCollectionId]);
+
+  const sortedCollections = useMemo(() => {
+    const sorted = [...collections].sort((a, b) => a.order - b.order);
+    const result: (Collection & { depth: number })[] = [];
+    const addChildren = (parentId: string | null, depth: number) => {
+      sorted
+        .filter((c) => (c.parentId ?? null) === parentId)
+        .forEach((c) => {
+          result.push({ ...c, depth });
+          addChildren(c.id, depth + 1);
+        });
+    };
+    addChildren(null, 0);
+    return result;
+  }, [collections]);
+
+  const getCardCount = useCallback(
+    (collectionId: string | null) => {
+      if (!collectionId) return allCards.length;
+      return allCards.filter((c) => c.collectionId === collectionId).length;
+    },
+    [allCards]
+  );
+
+  const uncategorizedCount = useMemo(
+    () => allCards.filter((c) => c.collectionId === UNCATEGORIZED_ID).length,
+    [allCards]
+  );
+
+  const openDrawer = useCallback(() => {
+    setDrawerVisible(true);
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  }, [slideAnim]);
+
+  const closeDrawer = useCallback(() => {
+    Animated.timing(slideAnim, {
+      toValue: -DRAWER_WIDTH,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setDrawerVisible(false);
+    });
+  }, [slideAnim]);
+
+  const handleSelectCollection = useCallback(
+    (id: string | null) => {
+      setSelectedCollectionId(id);
+      hapticLight();
+      closeDrawer();
+    },
+    [setSelectedCollectionId, closeDrawer]
+  );
+
+  const getStatusColor = (status: CardStatus) => {
+    switch (status) {
+      case 'decided':  return StatusColors.decided;
+      case 'rejected': return StatusColors.rejected;
+      default:         return StatusColors.thinking;
+    }
+  };
+
+  const getCollectionForCard = useCallback(
+    (collectionId: string) => collections.find((c) => c.id === collectionId),
+    [collections]
+  );
+
+  const handleCardLongPress = useCallback(
+    (card: Card) => {
+      hapticLight();
+      Alert.alert(card.title || 'カード', undefined, [
+        {
+          text: '削除',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert('削除確認', 'このカードを削除しますか？', [
+              { text: 'キャンセル', style: 'cancel' },
+              {
+                text: '削除する',
+                style: 'destructive',
+                onPress: () => {
+                  deleteCard(card.id);
+                  hapticWarning();
+                },
+              },
+            ]);
+          },
+        },
+        { text: 'キャンセル', style: 'cancel' },
+      ]);
+    },
+    [deleteCard]
+  );
+
+  // --- Card renderers ---
+
+  const renderCard = (item: Card) => {
+    const collection = getCollectionForCard(item.collectionId);
+    return (
+      <Link key={item.id} href={`/card/${item.id}`} asChild>
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            { backgroundColor: colors.card },
+            pressed && styles.pressedOpacity,
+          ]}
+          onLongPress={() => handleCardLongPress(item)}
+          delayLongPress={500}
+        >
+          {item.thumbnail ? (
+            <View style={[styles.cardThumbnailWrap, { backgroundColor: colors.groupBackground }]}>
+              <Image source={{ uri: item.thumbnail }} style={styles.cardThumbnail} resizeMode="cover" />
+            </View>
+          ) : (
+            <View style={[styles.cardThumbnailWrap, { backgroundColor: colors.groupBackground }]}>
+              <ThemedText style={styles.placeholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
+            </View>
+          )}
+          <View style={styles.cardBody}>
+            <ThemedText style={styles.cardTitle} numberOfLines={2}>
+              {item.title || 'タイトルなし'}
+            </ThemedText>
+            <View style={styles.cardMeta}>
+              <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
+              <ThemedText style={styles.priorityText}>{'★'.repeat(item.priority)}</ThemedText>
+              {cacheEntries[item.id] && (
+                <View style={styles.dlBadge}>
+                  <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
+                </View>
+              )}
+            </View>
+            {!selectedCollectionId && (
+              <ThemedText style={[styles.collectionLabel, { color: colors.textSecondary }]} numberOfLines={1}>
+                {item.collectionId === UNCATEGORIZED_ID
+                  ? `${UNCATEGORIZED_ICON} ${UNCATEGORIZED_LABEL}`
+                  : collection
+                  ? `${collection.icon} ${collection.name}`
+                  : `${UNCATEGORIZED_ICON} ${UNCATEGORIZED_LABEL}`}
+              </ThemedText>
+            )}
+          </View>
+        </Pressable>
+      </Link>
+    );
+  };
+
+  const renderGrid2Card = (item: Card) => {
+    const collection = getCollectionForCard(item.collectionId);
+    return (
+      <View key={item.id} style={{ width: GRID2_CARD_WIDTH }}>
+        <Link href={`/card/${item.id}`} asChild>
+          <Pressable
+            style={({ pressed }) => [
+              styles.grid2Card,
+              { backgroundColor: colors.card },
+              pressed && styles.pressedOpacity,
+            ]}
+            onLongPress={() => handleCardLongPress(item)}
+            delayLongPress={500}
+          >
+            {item.thumbnail ? (
+              <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
+                <Image source={{ uri: item.thumbnail }} style={styles.grid2ThumbImg} resizeMode="cover" />
+              </View>
+            ) : (
+              <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
+                <ThemedText style={styles.grid2PlaceholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
+              </View>
+            )}
+            <View style={styles.grid2Body}>
+              <ThemedText style={styles.grid2Title} numberOfLines={2}>
+                {item.title || 'タイトルなし'}
+              </ThemedText>
+              <View style={styles.cardMeta}>
+                <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
+                <ThemedText style={styles.priorityText}>{'★'.repeat(item.priority)}</ThemedText>
+                {cacheEntries[item.id] && (
+                  <View style={styles.dlBadge}>
+                    <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
+                  </View>
+                )}
+              </View>
+              {!selectedCollectionId && (
+                <ThemedText style={[styles.collectionLabel, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {item.collectionId === UNCATEGORIZED_ID
+                    ? `${UNCATEGORIZED_ICON} ${UNCATEGORIZED_LABEL}`
+                    : collection
+                    ? `${collection.icon} ${collection.name}`
+                    : `${UNCATEGORIZED_ICON} ${UNCATEGORIZED_LABEL}`}
+                </ThemedText>
+              )}
+            </View>
+          </Pressable>
+        </Link>
+      </View>
+    );
+  };
+
+  const renderListCard = (item: Card) => {
+    const collection = getCollectionForCard(item.collectionId);
+    return (
+      <Link key={item.id} href={`/card/${item.id}`} asChild>
+        <Pressable
+          style={({ pressed }) => [
+            styles.listCard,
+            { backgroundColor: colors.card },
+            pressed && styles.pressedOpacity,
+          ]}
+          onLongPress={() => handleCardLongPress(item)}
+          delayLongPress={500}
+        >
+          <View style={styles.listCardInner}>
+            {item.thumbnail ? (
+              <Image
+                source={{ uri: item.thumbnail }}
+                style={[styles.listThumb, { backgroundColor: colors.groupBackground }]}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground }]}>
+                <ThemedText style={styles.listPlaceholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
+              </View>
+            )}
+            <View style={styles.listBody}>
+              <ThemedText style={styles.listTitle} numberOfLines={2}>
+                {item.title || 'タイトルなし'}
+              </ThemedText>
+              <View style={styles.cardMeta}>
+                <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
+                <ThemedText style={styles.priorityText}>{'★'.repeat(item.priority)}</ThemedText>
+                {cacheEntries[item.id] && (
+                  <View style={styles.dlBadge}>
+                    <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
+                  </View>
+                )}
+              </View>
+              {!selectedCollectionId && (
+                <ThemedText style={[styles.collectionLabel, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {item.collectionId === UNCATEGORIZED_ID
+                    ? `${UNCATEGORIZED_ICON} ${UNCATEGORIZED_LABEL}`
+                    : collection
+                    ? `${collection.icon} ${collection.name}`
+                    : `${UNCATEGORIZED_ICON} ${UNCATEGORIZED_LABEL}`}
+                </ThemedText>
+              )}
+            </View>
+            {/* iOS-style disclosure chevron */}
+            <ThemedText style={[styles.listChevron, { color: colors.textSecondary }]}>›</ThemedText>
+          </View>
+        </Pressable>
+      </Link>
+    );
+  };
+
+  const renderEmptyState = () => (
+    <ThemedView style={styles.emptyContainer}>
+      <ThemedText style={styles.emptyIcon}>📝</ThemedText>
+      <ThemedText style={[styles.emptyTitle, { color: colors.text }]}>
+        {selectedCollectionId ? 'このコレクションにカードがありません' : 'カードがありません'}
+      </ThemedText>
+      <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+        URLやスクリーンショットを{'\n'}保存してみましょう
+      </ThemedText>
+      <Pressable
+        style={[styles.createButton, { backgroundColor: colors.tint }]}
+        onPress={() => router.push('/save-modal')}
+      >
+        <ThemedText style={styles.createButtonText}>カードを追加</ThemedText>
+      </Pressable>
+    </ThemedView>
+  );
+
+  const renderDrawer = () => (
+    <Modal
+      visible={drawerVisible}
+      transparent
+      animationType="none"
+      onRequestClose={closeDrawer}
+      statusBarTranslucent
+    >
+      {/* Backdrop */}
+      <Pressable style={styles.drawerBackdrop} onPress={closeDrawer}>
+        <View />
+      </Pressable>
+
+      {/* Drawer panel */}
+      <Animated.View
+        style={[
+          styles.drawerPanel,
+          {
+            backgroundColor: colors.groupBackground,
+            transform: [{ translateX: slideAnim }],
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.drawerHeader,
+            { borderBottomColor: colors.separator, paddingTop: insets.top + 16 },
+          ]}
+        >
+          <ThemedText style={[styles.drawerTitle, { color: colors.text }]}>コレクション</ThemedText>
+          <Pressable
+            style={[styles.drawerAddButton, { backgroundColor: colors.tint }]}
+            onPress={() => {
+              closeDrawer();
+              router.push('/collection-modal');
+            }}
+          >
+            <ThemedText style={styles.drawerAddButtonText}>+</ThemedText>
+          </Pressable>
+        </View>
+
+        <ScrollView style={styles.drawerList}>
+          {/* All cards */}
+          <Pressable
+            style={[
+              styles.drawerItem,
+              selectedCollectionId === null && { backgroundColor: colors.tint + '18' },
+            ]}
+            onPress={() => handleSelectCollection(null)}
+          >
+            <ThemedText style={styles.drawerItemIcon}>📋</ThemedText>
+            <ThemedText
+              style={[
+                styles.drawerItemName,
+                { color: colors.text },
+                selectedCollectionId === null && { color: colors.tint, fontWeight: '700' },
+              ]}
+              numberOfLines={1}
+            >
+              すべて
+            </ThemedText>
+            <ThemedText style={[styles.drawerItemCount, { color: colors.textSecondary }]}>
+              {getCardCount(null)}
+            </ThemedText>
+          </Pressable>
+
+          <View style={[styles.drawerDivider, { backgroundColor: colors.separator }]} />
+
+          {/* 未分類 */}
+          <Pressable
+            style={[
+              styles.drawerItem,
+              selectedCollectionId === UNCATEGORIZED_ID && { backgroundColor: colors.tint + '18' },
+            ]}
+            onPress={() => handleSelectCollection(UNCATEGORIZED_ID)}
+          >
+            <ThemedText style={styles.drawerItemIcon}>{UNCATEGORIZED_ICON}</ThemedText>
+            <ThemedText
+              style={[
+                styles.drawerItemName,
+                { color: colors.text },
+                selectedCollectionId === UNCATEGORIZED_ID && { color: colors.tint, fontWeight: '700' },
+              ]}
+              numberOfLines={1}
+            >
+              {UNCATEGORIZED_LABEL}
+            </ThemedText>
+            <ThemedText style={[styles.drawerItemCount, { color: colors.textSecondary }]}>
+              {uncategorizedCount}
+            </ThemedText>
+          </Pressable>
+
+          {sortedCollections.length > 0 && (
+            <View style={[styles.drawerDivider, { backgroundColor: colors.separator }]} />
+          )}
+
+          {/* Collection list */}
+          {sortedCollections.map((item) => (
+            <Pressable
+              key={item.id}
+              style={[
+                styles.drawerItem,
+                { paddingLeft: Spacing.screenHorizontal + item.depth * 20 },
+                selectedCollectionId === item.id && { backgroundColor: colors.tint + '18' },
+              ]}
+              onPress={() => handleSelectCollection(item.id)}
+            >
+              <ThemedText style={styles.drawerItemIcon}>{item.icon}</ThemedText>
+              <ThemedText
+                style={[
+                  styles.drawerItemName,
+                  { color: colors.text },
+                  selectedCollectionId === item.id && { color: colors.tint, fontWeight: '700' },
+                ]}
+                numberOfLines={1}
+              >
+                {item.name}
+              </ThemedText>
+              <ThemedText style={[styles.drawerItemCount, { color: colors.textSecondary }]}>
+                {getCardCount(item.id)}
+              </ThemedText>
+            </Pressable>
+          ))}
+
+          {sortedCollections.length === 0 && (
+            <View style={styles.drawerEmpty}>
+              <ThemedText style={[styles.drawerEmptyText, { color: colors.textSecondary }]}>
+                コレクションがありません
+              </ThemedText>
+            </View>
+          )}
+        </ScrollView>
+      </Animated.View>
+    </Modal>
+  );
+
+  return (
+    <ThemedView style={[styles.container, { backgroundColor: colors.groupBackground }]}>
+      {/* Header bar – Large Title iOS style */}
+      <View
+        style={[
+          styles.headerBar,
+          {
+            backgroundColor: colorScheme === 'dark'
+              ? 'rgba(0,0,0,0.88)'
+              : 'rgba(255,255,255,0.88)',
+            borderBottomColor: colors.separator,
+            paddingTop: insets.top + 8,
+          },
+        ]}
+      >
+        {/* Hamburger menu */}
+        <Pressable
+          style={({ pressed }) => [styles.hamburgerButton, pressed && styles.pressedOpacity]}
+          onPress={openDrawer}
+        >
+          <ThemedText style={[styles.hamburgerIcon, { color: colors.tint }]}>☰</ThemedText>
+        </Pressable>
+
+        {/* Large Title */}
+        <ThemedText style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
+          {selectedCollection
+            ? `${selectedCollection.icon} ${selectedCollection.name}`
+            : 'すべて'}
         </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+
+        {/* Segment control – view mode */}
+        <View style={[styles.segmentControl, { backgroundColor: colors.groupBackground }]}>
+          {(['grid1', 'grid2', 'list'] as ViewMode[]).map((mode) => (
+            <Pressable
+              key={mode}
+              style={[
+                styles.segmentButton,
+                viewMode === mode && { backgroundColor: colors.card },
+                viewMode === mode && styles.segmentButtonActive,
+              ]}
+              onPress={() => { setViewMode(mode); hapticLight(); }}
+            >
+              <ThemedText
+                style={[
+                  styles.segmentIcon,
+                  { color: viewMode === mode ? colors.text : colors.textSecondary },
+                ]}
+              >
+                {VIEW_MODE_ICONS[mode]}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* + Button */}
+        <Pressable
+          style={({ pressed }) => [styles.addButton, pressed && styles.pressedOpacity]}
+          onPress={() => router.push('/save-modal')}
+        >
+          <ThemedText style={[styles.addButtonText, { color: colors.tint }]}>+</ThemedText>
+        </Pressable>
+      </View>
+
+      {/* Card feed */}
+      <ScrollView contentContainerStyle={styles.feedContent}>
+        {filteredCards.length === 0 ? (
+          renderEmptyState()
+        ) : viewMode === 'grid2' ? (
+          <View style={styles.grid2Container}>
+            {filteredCards.map(renderGrid2Card)}
+          </View>
+        ) : viewMode === 'list' ? (
+          <View style={styles.listContainer}>
+            {filteredCards.map(renderListCard)}
+          </View>
+        ) : (
+          <View style={styles.cardList}>
+            {filteredCards.map(renderCard)}
+          </View>
+        )}
+      </ScrollView>
+
+      <AdBanner />
+      {renderDrawer()}
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+  },
+
+  // ---- Header ----
+  headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    paddingHorizontal: 4,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  stepContainer: {
-    gap: 8,
+  hamburgerButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  hamburgerIcon: {
+    fontSize: 22,
+  },
+  headerTitle: {
+    flex: 1,
+    ...Typography.title2,
+    marginHorizontal: 6,
+  },
+  addButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  addButtonText: {
+    fontSize: 28,
+    fontWeight: '300',
+  },
+
+  // Segment control (view mode)
+  segmentControl: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    padding: 2,
+    marginRight: 2,
+  },
+  segmentButton: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  segmentButtonActive: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  segmentIcon: {
+    fontSize: 14,
+  },
+
+  // ---- Feed ----
+  feedContent: {
+    padding: Spacing.screenHorizontal,
+    paddingBottom: 24,
+    flexGrow: 1,
+  },
+  cardList: {
+    gap: 12,
+  },
+
+  // ---- Grid 1 card ----
+  card: {
+    borderRadius: Spacing.cardRadius,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardThumbnailWrap: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  cardThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholderEmoji: {
+    fontSize: 40,
+    lineHeight: 50,
+  },
+  cardBody: {
+    padding: 14,
+  },
+  cardTitle: {
+    fontSize: Typography.headline.fontSize,
+    fontWeight: Typography.headline.fontWeight,
+    lineHeight: Typography.headline.lineHeight,
+    marginBottom: 6,
+  },
+
+  // ---- Grid 2 card ----
+  grid2Container: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: GRID_GAP,
+  },
+  grid2Card: {
+    borderRadius: Spacing.cardRadius,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  grid2Thumb: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  grid2ThumbImg: {
+    width: '100%',
+    height: '100%',
+  },
+  grid2PlaceholderEmoji: {
+    fontSize: 28,
+    lineHeight: 36,
+  },
+  grid2Body: {
+    padding: 10,
+  },
+  grid2Title: {
+    fontSize: Typography.footnote.fontSize,
+    fontWeight: '600',
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+
+  // ---- List card ----
+  listContainer: {
+    borderRadius: Spacing.groupRadius,
+    overflow: 'hidden',
+    gap: 0,
+  },
+  listCard: {
+    // No individual radius — container clips
+  },
+  listCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: Spacing.cellVertical,
+    minHeight: LIST_THUMB_SIZE + Spacing.cellVertical * 2,
+  },
+  listThumb: {
+    width: LIST_THUMB_SIZE,
+    height: LIST_THUMB_SIZE,
+    borderRadius: LIST_THUMB_RADIUS,
+    flexShrink: 0,
+  },
+  listThumbPlaceholder: {
+    width: LIST_THUMB_SIZE,
+    height: LIST_THUMB_SIZE,
+    borderRadius: LIST_THUMB_RADIUS,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  listPlaceholderEmoji: {
+    fontSize: 28,
+    lineHeight: 36,
+  },
+  listBody: {
+    flex: 1,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+  },
+  listTitle: {
+    fontSize: Typography.subhead.fontSize,
+    fontWeight: '600',
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  listChevron: {
+    fontSize: 20,
+    marginLeft: 4,
+    opacity: 0.4,
+  },
+
+  // ---- Shared meta row ----
+  cardMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    marginRight: 5,
+  },
+  priorityText: {
+    fontSize: 11,
+    color: '#FF9500',
+  },
+  dlBadge: {
+    backgroundColor: StatusColors.decided,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginLeft: 6,
+  },
+  dlBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  collectionLabel: {
+    fontSize: Typography.caption.fontSize,
+    marginTop: 2,
+  },
+
+  // ---- Pressed state ----
+  pressedOpacity: {
+    opacity: 0.7,
+  },
+
+  // ---- Empty state ----
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingTop: 80,
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    ...Typography.title2,
     marginBottom: 8,
+    textAlign: 'center',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
+  emptySubtitle: {
+    ...Typography.subhead,
+    textAlign: 'center',
+    marginBottom: 28,
+  },
+  createButton: {
+    paddingHorizontal: 28,
+    paddingVertical: 13,
+    borderRadius: Spacing.buttonRadiusMd,
+  },
+  createButtonText: {
+    color: '#fff',
+    ...Typography.headline,
+  },
+
+  // ---- Drawer ----
+  drawerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  drawerPanel: {
+    position: 'absolute',
+    top: 0,
     bottom: 0,
     left: 0,
-    position: 'absolute',
+    width: DRAWER_WIDTH,
+    shadowColor: '#000',
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  drawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  drawerTitle: {
+    ...Typography.title2,
+  },
+  drawerAddButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  drawerAddButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '400',
+  },
+  drawerList: {
+    flex: 1,
+  },
+  drawerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.screenHorizontal,
+    paddingVertical: 13,
+  },
+  drawerItemIcon: {
+    fontSize: 20,
+    lineHeight: 26,
+    marginRight: 12,
+    width: 28,
+    textAlign: 'center',
+  },
+  drawerItemName: {
+    flex: 1,
+    ...Typography.subhead,
+    fontWeight: '500',
+  },
+  drawerItemCount: {
+    ...Typography.footnote,
+    marginLeft: 8,
+  },
+  drawerDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: Spacing.screenHorizontal,
+    marginVertical: 2,
+  },
+  drawerEmpty: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  drawerEmptyText: {
+    ...Typography.footnote,
   },
 });
