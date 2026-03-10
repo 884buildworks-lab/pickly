@@ -59,7 +59,11 @@
       "Bash(git checkout -b develop)",
       "Bash(git add -A && git status --short)",
       "Bash(git add --all -- ':!nul' && git status --short)",
-      "Bash(echo \"nul\" >> .gitignore && git add --all -- \":\\(exclude\\)nul\")"
+      "Bash(echo \"nul\" >> .gitignore && git add --all -- \":\\(exclude\\)nul\")",
+      "Bash(git commit -m \"$\\(cat <<'EOF'\nfix: emoji icon clipping on multiple screens \\(v1.0.1\\)\n\nAdd lineHeight to emoji text styles to prevent top/bottom clipping:\n- Home screen: card grid, list view, drawer icons, header title\n- Collection modal: icon preview\n- Card detail: hero emoji\nAlso adds EAS build config and .gitignore for nul file.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git tag v1.0.1 && git push -u origin develop && git push origin v1.0.1)",
+      "WebFetch(domain:www.google.co.jp)",
+      "Bash(git add --all -- \":\\(exclude\\)nul\" && git status --short | head -15)"
     ]
   }
 }

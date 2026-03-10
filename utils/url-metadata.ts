@@ -2,6 +2,7 @@ export interface UrlMetadata {
   title?: string;
   description?: string;
   image?: string;
+  favicon?: string;
   siteName?: string;
   url: string;
 }
@@ -75,6 +76,48 @@ function decodeHtmlEntities(text: string): string {
 }
 
 /**
+ * Extract favicon/icon URL from HTML
+ * Tries: apple-touch-icon, PNG/SVG icon link tags, then falls back to Google Favicon API
+ */
+function extractFavicon(html: string, baseUrl: string): string | undefined {
+  // Try apple-touch-icon first (high resolution PNG)
+  const appleTouchRegex = /<link[^>]*rel=["']apple-touch-icon(?:-precomposed)?["'][^>]*href=["']([^"']+)["']/i;
+  const appleTouchMatch = html.match(appleTouchRegex);
+  if (appleTouchMatch) return resolveUrl(baseUrl, appleTouchMatch[1]);
+
+  const appleTouchRegex2 = /<link[^>]*href=["']([^"']+)["'][^>]*rel=["']apple-touch-icon(?:-precomposed)?["']/i;
+  const appleTouchMatch2 = html.match(appleTouchRegex2);
+  if (appleTouchMatch2) return resolveUrl(baseUrl, appleTouchMatch2[1]);
+
+  // Try icon/shortcut icon (only if PNG or SVG — skip .ico which React Native can't render reliably)
+  const iconRegex = /<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["']/i;
+  const iconMatch = html.match(iconRegex);
+  if (iconMatch) {
+    const href = iconMatch[1];
+    if (!href.endsWith('.ico') && !href.includes('favicon.ico')) {
+      return resolveUrl(baseUrl, href);
+    }
+  }
+
+  const iconRegex2 = /<link[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:shortcut )?icon["']/i;
+  const iconMatch2 = html.match(iconRegex2);
+  if (iconMatch2) {
+    const href = iconMatch2[1];
+    if (!href.endsWith('.ico') && !href.includes('favicon.ico')) {
+      return resolveUrl(baseUrl, href);
+    }
+  }
+
+  // Fall back to Google Favicon API (returns PNG, 128px)
+  try {
+    const parsed = new URL(baseUrl);
+    return `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=128`;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Resolve relative URL to absolute
  */
 function resolveUrl(base: string, relative: string | undefined): string | undefined {
@@ -138,9 +181,22 @@ export async function fetchUrlMetadata(url: string): Promise<UrlMetadata> {
     const imageUrl = extractMetaContent(html, 'image');
     result.image = resolveUrl(url, imageUrl);
 
+    // Extract favicon as fallback icon
+    result.favicon = extractFavicon(html, url);
+
   } catch (error) {
     // Return partial result with URL even if fetch fails
     console.warn('Failed to fetch URL metadata:', error);
+  }
+
+  // Always provide favicon via Google API if not already set
+  if (!result.favicon) {
+    try {
+      const parsed = new URL(url);
+      result.favicon = `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=128`;
+    } catch {
+      // ignore
+    }
   }
 
   return result;

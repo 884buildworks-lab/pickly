@@ -35,7 +35,11 @@ export default function SaveModal() {
   const [title, setTitle] = useState('');
   const [memo, setMemo] = useState('');
   const [thumbnail, setThumbnail] = useState<string | undefined>(undefined);
+  const [favicon, setFavicon] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
+  const urlHasValue = url.trim().length > 0;
+  const urlIsValid = !urlHasValue || isValidUrl(url.trim());
+  const canSave = urlIsValid && (urlHasValue || title.trim().length > 0);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(
     lastUsedCollectionId && collections.some((c) => c.id === lastUsedCollectionId)
       ? lastUsedCollectionId
@@ -56,6 +60,7 @@ export default function SaveModal() {
       const metadata = await fetchUrlMetadata(inputUrl);
       if (metadata.title && !title) setTitle(metadata.title);
       if (metadata.image) setThumbnail(metadata.image);
+      if (metadata.favicon) setFavicon(metadata.favicon);
     } catch (error) {
       console.warn('Failed to fetch metadata:', error);
     } finally {
@@ -76,6 +81,7 @@ export default function SaveModal() {
       title: title || url || '無題',
       url: url || undefined,
       thumbnail,
+      favicon,
       memo,
       priority: 2,
       status: 'thinking',
@@ -112,6 +118,11 @@ export default function SaveModal() {
             <ActivityIndicator style={styles.urlSpinner} size="small" color={colors.tint} />
           )}
         </View>
+        {urlHasValue && !urlIsValid && (
+          <ThemedText style={[styles.urlError, { color: colors.destructive ?? '#FF3B30' }]}>
+            有効なURLを入力してください（例: https://...）
+          </ThemedText>
+        )}
         {url && isValidUrl(url) && thumbnail && (
           <View style={[styles.previewWrap, { borderTopColor: colors.separator, borderTopWidth: StyleSheet.hairlineWidth }]}>
             <Image source={{ uri: thumbnail }} style={styles.previewImage} resizeMode="cover" />
@@ -211,11 +222,11 @@ export default function SaveModal() {
         style={({ pressed }) => [
           styles.saveButton,
           { backgroundColor: colors.tint },
-          isLoading && styles.saveButtonDisabled,
+          (isLoading || !canSave) && styles.saveButtonDisabled,
           pressed && styles.pressedOpacity,
         ]}
         onPress={handleSave}
-        disabled={isLoading}
+        disabled={isLoading || !canSave}
       >
         <ThemedText style={styles.saveButtonText}>
           {isLoading ? '読み込み中...' : '保存'}
@@ -284,6 +295,13 @@ const styles = StyleSheet.create({
   memoInput: {
     minHeight: 100,
     paddingTop: 13,
+  },
+
+  // URL error
+  urlError: {
+    ...Typography.footnote,
+    paddingHorizontal: Spacing.screenHorizontal,
+    paddingVertical: 8,
   },
 
   // Preview image

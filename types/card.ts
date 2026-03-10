@@ -13,6 +13,7 @@ export interface Card {
   title: string;
   url?: string;
   thumbnail?: string;
+  favicon?: string;
   memo: string;
   priority: CardPriority;
   status: CardStatus;

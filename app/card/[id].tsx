@@ -272,6 +272,10 @@ export default function CardDetailScreen() {
         <View style={[styles.heroWrap, { backgroundColor: colors.card }]}>
           <Image source={{ uri: card.thumbnail }} style={styles.heroImage} resizeMode="contain" />
         </View>
+      ) : card.favicon ? (
+        <View style={[styles.heroWrap, styles.heroPlaceholder, { backgroundColor: colors.card }]}>
+          <Image source={{ uri: card.favicon }} style={styles.heroFavicon} resizeMode="contain" />
+        </View>
       ) : (
         <View style={[styles.heroWrap, styles.heroPlaceholder, { backgroundColor: colors.card }]}>
           <ThemedText style={styles.heroEmoji}>🔗</ThemedText>
@@ -770,6 +774,11 @@ const styles = StyleSheet.create({
   heroImage: {
     width: '100%',
     aspectRatio: 4 / 3,
+  },
+  heroFavicon: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
   },
   heroEmoji: {
     fontSize: 64,

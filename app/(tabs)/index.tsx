@@ -193,6 +193,10 @@ export default function HomeScreen() {
             <View style={[styles.cardThumbnailWrap, { backgroundColor: colors.groupBackground }]}>
               <Image source={{ uri: item.thumbnail }} style={styles.cardThumbnail} resizeMode="cover" />
             </View>
+          ) : item.favicon ? (
+            <View style={[styles.cardThumbnailWrap, { backgroundColor: colors.groupBackground }]}>
+              <Image source={{ uri: item.favicon }} style={styles.faviconIcon} resizeMode="contain" />
+            </View>
           ) : (
             <View style={[styles.cardThumbnailWrap, { backgroundColor: colors.groupBackground }]}>
               <ThemedText style={styles.placeholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
@@ -243,6 +247,10 @@ export default function HomeScreen() {
             {item.thumbnail ? (
               <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
                 <Image source={{ uri: item.thumbnail }} style={styles.grid2ThumbImg} resizeMode="cover" />
+              </View>
+            ) : item.favicon ? (
+              <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
+                <Image source={{ uri: item.favicon }} style={styles.faviconIconSmall} resizeMode="contain" />
               </View>
             ) : (
               <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
@@ -298,6 +306,10 @@ export default function HomeScreen() {
                 style={[styles.listThumb, { backgroundColor: colors.groupBackground }]}
                 resizeMode="cover"
               />
+            ) : item.favicon ? (
+              <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground }]}>
+                <Image source={{ uri: item.favicon }} style={styles.faviconIconSmall} resizeMode="contain" />
+              </View>
             ) : (
               <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground }]}>
                 <ThemedText style={styles.listPlaceholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
@@ -663,6 +675,16 @@ const styles = StyleSheet.create({
   cardThumbnail: {
     width: '100%',
     height: '100%',
+  },
+  faviconIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+  },
+  faviconIconSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
   },
   placeholderEmoji: {
     fontSize: 40,
