@@ -3,7 +3,6 @@ import {
   ScrollView,
   View,
   Pressable,
-  Linking,
   TextInput,
   Alert,
   Image,
@@ -103,11 +102,7 @@ export default function CardDetailScreen() {
     hapticLight();
   };
 
-  const handleOpenUrl = () => {
-    if (card.url) Linking.openURL(card.url);
-  };
-
-  const handlePreviewUrl = async () => {
+  const handleOpenUrl = async () => {
     if (card.url) {
       await WebBrowser.openBrowserAsync(card.url, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
@@ -318,21 +313,9 @@ export default function CardDetailScreen() {
                   { backgroundColor: colors.tint },
                   pressed && styles.pressedOpacity,
                 ]}
-                onPress={handlePreviewUrl}
-              >
-                <ThemedText style={styles.urlBtnText}>プレビュー</ThemedText>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.urlBtn,
-                  { backgroundColor: colors.groupBackground },
-                  pressed && styles.pressedOpacity,
-                ]}
                 onPress={handleOpenUrl}
               >
-                <ThemedText style={[styles.urlBtnTextSecondary, { color: colors.tint }]}>
-                  ブラウザで開く
-                </ThemedText>
+                <ThemedText style={styles.urlBtnText}>ブラウザで開く</ThemedText>
               </Pressable>
             </View>
 
@@ -837,21 +820,16 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   urlActions: {
-    flexDirection: 'row',
     padding: Spacing.screenHorizontal,
-    gap: 8,
   },
   urlBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    paddingHorizontal: Spacing.screenHorizontal,
     borderRadius: Spacing.buttonRadiusSm,
+    alignItems: 'center',
   },
   urlBtnText: {
     color: '#fff',
-    ...Typography.subhead,
-    fontWeight: '500',
-  },
-  urlBtnTextSecondary: {
     ...Typography.subhead,
     fontWeight: '500',
   },
