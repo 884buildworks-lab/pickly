@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export interface CacheEntry {
   html: string;
   cachedAt: number;
+  sizeBytes: number;
 }
 
 interface CacheState {
@@ -24,7 +25,11 @@ export const useCacheStore = create<CacheState>()(
         set((state) => ({
           entries: {
             ...state.entries,
-            [cardId]: { html, cachedAt: Date.now() },
+            [cardId]: {
+              html,
+              cachedAt: Date.now(),
+              sizeBytes: typeof Blob !== 'undefined' ? new Blob([html]).size : html.length * 2,
+            },
           },
         }));
       },

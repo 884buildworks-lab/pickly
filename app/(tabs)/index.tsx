@@ -17,12 +17,12 @@ import { useShallow } from 'zustand/react/shallow';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useCollectionStore, useCardStore, useAppStore, useCacheStore } from '@/store';
-import { Colors, StatusColors, Spacing, Typography } from '@/constants/theme';
+import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticLight, hapticWarning } from '@/utils/haptics';
 import { UNCATEGORIZED_ID, UNCATEGORIZED_ICON, UNCATEGORIZED_LABEL } from '@/constants/collections';
 import AdBanner from '@/components/ad-banner';
-import type { Card, CardStatus, Collection } from '@/types';
+import type { Card, Collection } from '@/types';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.75;
@@ -57,9 +57,31 @@ export default function HomeScreen() {
 
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('grid1');
+  const [labelFilters, setLabelFilters] = useState<Set<string>>(new Set());
+  const [labelModalVisible, setLabelModalVisible] = useState(false);
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
 
-  // Filter cards by selected collection
+  // Collect all labels from visible cards
+  const availableLabels = useMemo(() => {
+    const base = selectedCollectionId
+      ? allCards.filter((c) => c.collectionId === selectedCollectionId)
+      : allCards;
+    const labels = new Set<string>();
+    base.forEach((c) => c.labels.forEach((l) => labels.add(l)));
+    return Array.from(labels).sort();
+  }, [allCards, selectedCollectionId]);
+
+  const toggleLabelFilter = useCallback((label: string) => {
+    setLabelFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+    hapticLight();
+  }, []);
+
+  // Filter cards by selected collection + labels
   const filteredCards = useMemo(() => {
     let cards: typeof allCards;
     if (!selectedCollectionId) {
@@ -67,8 +89,11 @@ export default function HomeScreen() {
     } else {
       cards = allCards.filter((c) => c.collectionId === selectedCollectionId);
     }
+    if (labelFilters.size > 0) {
+      cards = cards.filter((c) => [...labelFilters].every((l) => c.labels.includes(l)));
+    }
     return [...cards].sort((a, b) => b.createdAt - a.createdAt);
-  }, [allCards, selectedCollectionId]);
+  }, [allCards, selectedCollectionId, labelFilters]);
 
   const selectedCollection = useMemo(() => {
     if (!selectedCollectionId) return null;
@@ -128,19 +153,12 @@ export default function HomeScreen() {
   const handleSelectCollection = useCallback(
     (id: string | null) => {
       setSelectedCollectionId(id);
+      setLabelFilters(new Set());
       hapticLight();
       closeDrawer();
     },
     [setSelectedCollectionId, closeDrawer]
   );
-
-  const getStatusColor = (status: CardStatus) => {
-    switch (status) {
-      case 'decided':  return StatusColors.decided;
-      case 'rejected': return StatusColors.rejected;
-      default:         return StatusColors.thinking;
-    }
-  };
 
   const getCollectionForCard = useCallback(
     (collectionId: string) => collections.find((c) => c.id === collectionId),
@@ -207,9 +225,7 @@ export default function HomeScreen() {
               {item.title || 'タイトルなし'}
             </ThemedText>
             <View style={styles.cardMeta}>
-              <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
-              <ThemedText style={styles.priorityText}>{'★'.repeat(item.priority)}</ThemedText>
-              {cacheEntries[item.id] && (
+{cacheEntries[item.id] && (
                 <View style={styles.dlBadge}>
                   <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
                 </View>
@@ -262,9 +278,7 @@ export default function HomeScreen() {
                 {item.title || 'タイトルなし'}
               </ThemedText>
               <View style={styles.cardMeta}>
-                <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
-                <ThemedText style={styles.priorityText}>{'★'.repeat(item.priority)}</ThemedText>
-                {cacheEntries[item.id] && (
+{cacheEntries[item.id] && (
                   <View style={styles.dlBadge}>
                     <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
                   </View>
@@ -320,9 +334,7 @@ export default function HomeScreen() {
                 {item.title || 'タイトルなし'}
               </ThemedText>
               <View style={styles.cardMeta}>
-                <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
-                <ThemedText style={styles.priorityText}>{'★'.repeat(item.priority)}</ThemedText>
-                {cacheEntries[item.id] && (
+{cacheEntries[item.id] && (
                   <View style={styles.dlBadge}>
                     <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
                   </View>
@@ -563,6 +575,101 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
+      {/* Label filter bar */}
+      {availableLabels.length > 0 && (
+        <View style={[styles.labelFilterBar, { borderBottomColor: colors.separator }]}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.labelFilterButton,
+              { backgroundColor: labelFilters.size > 0 ? colors.tint : colors.card },
+              pressed && styles.pressedOpacity,
+            ]}
+            onPress={() => setLabelModalVisible(true)}
+          >
+            <ThemedText
+              style={[
+                styles.labelFilterButtonText,
+                { color: labelFilters.size > 0 ? '#fff' : colors.text },
+              ]}
+            >
+              タグ絞り込み{labelFilters.size > 0 ? ` (${labelFilters.size})` : ''}
+            </ThemedText>
+          </Pressable>
+          {labelFilters.size > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.activeLabelsScroll}>
+              {[...labelFilters].map((label) => (
+                <View key={label} style={[styles.activeLabelChip, { backgroundColor: colors.tint + '18' }]}>
+                  <ThemedText style={[styles.activeLabelText, { color: colors.tint }]}>{label}</ThemedText>
+                  <Pressable onPress={() => toggleLabelFilter(label)} hitSlop={8}>
+                    <ThemedText style={[styles.activeLabelRemove, { color: colors.tint }]}>✕</ThemedText>
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      )}
+
+      {/* Label selection modal */}
+      <Modal
+        visible={labelModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setLabelModalVisible(false)}
+      >
+        <View style={styles.labelModalOverlay}>
+          <View style={[styles.labelModalContent, { backgroundColor: colors.groupBackground }]}>
+            <View style={[styles.labelModalHeader, { borderBottomColor: colors.separator }]}>
+              <ThemedText style={[styles.labelModalTitle, { color: colors.text }]}>
+                タグで絞り込み
+              </ThemedText>
+              <Pressable onPress={() => setLabelModalVisible(false)}>
+                <ThemedText style={[styles.labelModalDone, { color: colors.tint }]}>完了</ThemedText>
+              </Pressable>
+            </View>
+            <ScrollView style={styles.labelModalList}>
+              {availableLabels.map((label) => {
+                const isActive = labelFilters.has(label);
+                return (
+                  <Pressable
+                    key={label}
+                    style={[styles.labelModalRow, { backgroundColor: colors.card }]}
+                    onPress={() => toggleLabelFilter(label)}
+                  >
+                    <ThemedText style={[styles.labelModalLabel, { color: colors.text }]}>
+                      {label}
+                    </ThemedText>
+                    <View
+                      style={[
+                        styles.labelModalCheck,
+                        {
+                          backgroundColor: isActive ? colors.tint : 'transparent',
+                          borderColor: isActive ? colors.tint : colors.border,
+                        },
+                      ]}
+                    >
+                      {isActive && (
+                        <ThemedText style={styles.labelModalCheckmark}>✓</ThemedText>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            {labelFilters.size > 0 && (
+              <Pressable
+                style={[styles.labelModalClear, { borderTopColor: colors.separator }]}
+                onPress={() => { setLabelFilters(new Set()); hapticLight(); }}
+              >
+                <ThemedText style={[styles.labelModalClearText, { color: colors.destructive }]}>
+                  すべてクリア
+                </ThemedText>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </Modal>
+
       {/* Card feed */}
       <ScrollView contentContainerStyle={styles.feedContent}>
         {filteredCards.length === 0 ? (
@@ -591,6 +698,112 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+
+  // ---- Label filter bar ----
+  labelFilterBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.screenHorizontal,
+    paddingVertical: 8,
+    gap: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  labelFilterButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    flexShrink: 0,
+  },
+  labelFilterButtonText: {
+    ...Typography.footnote,
+    fontWeight: '600',
+  },
+  activeLabelsScroll: {
+    flexShrink: 1,
+  },
+  activeLabelChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginRight: 6,
+    gap: 4,
+  },
+  activeLabelText: {
+    ...Typography.caption,
+    fontWeight: '500',
+  },
+  activeLabelRemove: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+
+  // ---- Label selection modal ----
+  labelModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  labelModalContent: {
+    maxHeight: '70%',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  labelModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.screenHorizontal,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  labelModalTitle: {
+    ...Typography.headline,
+  },
+  labelModalDone: {
+    ...Typography.body,
+    fontWeight: '600',
+  },
+  labelModalList: {
+    paddingVertical: 8,
+  },
+  labelModalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.screenHorizontal,
+    paddingVertical: 13,
+    marginHorizontal: Spacing.screenHorizontal,
+    marginVertical: 2,
+    borderRadius: 10,
+  },
+  labelModalLabel: {
+    ...Typography.body,
+    flex: 1,
+  },
+  labelModalCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  labelModalCheckmark: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  labelModalClear: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  labelModalClearText: {
+    ...Typography.body,
+    fontWeight: '500',
   },
 
   // ---- Header ----
@@ -797,18 +1010,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 2,
   },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    marginRight: 5,
-  },
-  priorityText: {
-    fontSize: 11,
-    color: '#FF9500',
-  },
   dlBadge: {
-    backgroundColor: StatusColors.decided,
+    backgroundColor: Colors.light.tint,
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 4,

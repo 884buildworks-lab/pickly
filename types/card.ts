@@ -1,6 +1,3 @@
-export type CardStatus = 'thinking' | 'decided' | 'rejected';
-export type CardPriority = 1 | 2 | 3;
-
 export interface ChecklistItem {
   id: string;
   text: string;
@@ -15,8 +12,6 @@ export interface Card {
   thumbnail?: string;
   favicon?: string;
   memo: string;
-  priority: CardPriority;
-  status: CardStatus;
   labels: string[];
   checklist: ChecklistItem[];
   images: string[];

@@ -34,6 +34,8 @@ export const Colors = {
     tabIconSelected: IOS_BLUE,
     // Legacy alias used by existing icon components
     icon: '#8E8E93',
+    /** Destructive action – iOS systemRed */
+    destructive: '#FF3B30',
   },
   dark: {
     text: '#FFFFFF',
@@ -47,6 +49,7 @@ export const Colors = {
     tabIconDefault: '#8E8E93',
     tabIconSelected: IOS_BLUE,
     icon: '#8E8E93',
+    destructive: '#FF453A',
   },
 };
 
@@ -60,13 +63,6 @@ export const Typography = {
   subhead:    { fontSize: 15, fontWeight: '400' as const, lineHeight: 20 },
   footnote:   { fontSize: 13, fontWeight: '400' as const, lineHeight: 18 },
   caption:    { fontSize: 12, fontWeight: '400' as const, lineHeight: 16 },
-};
-
-/** iOS status colors */
-export const StatusColors = {
-  decided:  '#34C759',
-  rejected: '#FF3B30',
-  thinking: '#FF9500',
 };
 
 /** Shared spacing constants */

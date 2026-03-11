@@ -4,7 +4,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useCollectionStore, useCardStore, useAppStore } from '@/store';
 import type { ThemeMode } from '@/store/app-store';
-import { Colors, Typography, Spacing, StatusColors } from '@/constants/theme';
+import { Colors, Typography, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticWarning, hapticSuccess, hapticLight } from '@/utils/haptics';
 import { exportData, importData } from '@/utils/data-transfer';
@@ -41,7 +41,7 @@ function Cell({ label, value, destructive, onPress, showChevron = false }: CellP
         <ThemedText
           style={[
             styles.cellLabel,
-            { color: destructive ? StatusColors.rejected : colors.text },
+            { color: destructive ? colors.destructive : colors.text },
           ]}
         >
           {label}
@@ -160,15 +160,6 @@ export default function SettingsScreen() {
             </ThemedText>
             <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>
               カード
-            </ThemedText>
-          </View>
-          <View style={[styles.statDivider, { backgroundColor: colors.separator }]} />
-          <View style={styles.statCell}>
-            <ThemedText style={[styles.statNumber, { color: StatusColors.decided }]}>
-              {cards.filter((c) => c.status === 'decided').length}
-            </ThemedText>
-            <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>
-              決定済み
             </ThemedText>
           </View>
         </View>

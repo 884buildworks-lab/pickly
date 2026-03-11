@@ -15,7 +15,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useCollectionStore, useCardStore, useCacheStore } from '@/store';
-import { Colors, Typography, Spacing, StatusColors } from '@/constants/theme';
+import { Colors, Typography, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticWarning, hapticLight, hapticSuccess } from '@/utils/haptics';
 import {
@@ -24,11 +24,10 @@ import {
   type UrlCheckResult,
   type DuplicateGroup,
 } from '@/utils/url-checker';
-import type { Card, CardStatus } from '@/types';
+import type { Card } from '@/types';
 import AdBanner from '@/components/ad-banner';
 
-type FilterType = 'all' | CardStatus;
-type SortType = 'createdAt' | 'title' | 'priority' | 'status';
+type SortType = 'createdAt' | 'title';
 type SortOrder = 'asc' | 'desc';
 type ViewMode = 'grid' | 'grid2' | 'list' | 'headline';
 
@@ -39,7 +38,6 @@ export default function CollectionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
-  const [filter, setFilter] = useState<FilterType>('all');
   const [containerWidth, setContainerWidth] = useState(0);
   const [sortBy, setSortBy] = useState<SortType>('createdAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -47,7 +45,7 @@ export default function CollectionDetailScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
-  const [labelFilter, setLabelFilter] = useState<string | null>(null);
+  const [labelFilters, setLabelFilters] = useState<Set<string>>(new Set());
   const [domainFilter, setDomainFilter] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -116,22 +114,30 @@ export default function CollectionDetailScreen() {
   ];
 
   const activeFilterCount =
-    (filter !== 'all' ? 1 : 0) +
-    (labelFilter ? 1 : 0) +
+    labelFilters.size +
     (domainFilter ? 1 : 0) +
     (typeFilter ? 1 : 0);
 
   const handleClearAllFilters = () => {
-    setFilter('all');
-    setLabelFilter(null);
+    setLabelFilters(new Set());
     setDomainFilter(null);
     setTypeFilter(null);
     hapticLight();
   };
 
+  const toggleLabelFilter = (label: string) => {
+    setLabelFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+    hapticLight();
+  };
+
   const sortedCards = useMemo(() => {
-    let filtered = filter === 'all' ? allCards : allCards.filter((c) => c.status === filter);
-    if (labelFilter) filtered = filtered.filter((c) => c.labels.includes(labelFilter));
+    let filtered = allCards;
+    if (labelFilters.size > 0) filtered = filtered.filter((c) => [...labelFilters].every((l) => c.labels.includes(l)));
     if (domainFilter) filtered = filtered.filter((c) => getDomain(c.url) === domainFilter);
     if (typeFilter) {
       const fn = typeFilters.find((t) => t.key === typeFilter)?.filter;
@@ -152,54 +158,15 @@ export default function CollectionDetailScreen() {
       switch (sortBy) {
         case 'createdAt': comparison = a.createdAt - b.createdAt; break;
         case 'title':     comparison = a.title.localeCompare(b.title); break;
-        case 'priority':  comparison = a.priority - b.priority; break;
-        case 'status': {
-          const order = { thinking: 0, decided: 1, rejected: 2 };
-          comparison = order[a.status] - order[b.status];
-          break;
-        }
       }
       return sortOrder === 'asc' ? comparison : -comparison;
     });
-  }, [allCards, filter, labelFilter, domainFilter, typeFilter, searchQuery, sortBy, sortOrder, cacheEntries]);
-
-  const getStatusColor = (status: CardStatus) => {
-    switch (status) {
-      case 'decided':  return StatusColors.decided;
-      case 'rejected': return StatusColors.rejected;
-      default:         return StatusColors.thinking;
-    }
-  };
-
-  const getStatusChipColor = (status: FilterType) => {
-    switch (status) {
-      case 'all':      return colors.tint;
-      case 'thinking': return StatusColors.thinking;
-      case 'decided':  return StatusColors.decided;
-      case 'rejected': return StatusColors.rejected;
-    }
-  };
-
-  const getStatusLabel = (status: FilterType) => {
-    switch (status) {
-      case 'all':      return 'すべて';
-      case 'thinking': return '検討中';
-      case 'decided':  return '決定';
-      case 'rejected': return '却下';
-    }
-  };
-
-  const getStatusCount = (status: FilterType) => {
-    if (status === 'all') return allCards.length;
-    return allCards.filter((c) => c.status === status).length;
-  };
+  }, [allCards, labelFilters, domainFilter, typeFilter, searchQuery, sortBy, sortOrder, cacheEntries]);
 
   const getSortLabel = (sort: SortType) => {
     switch (sort) {
       case 'createdAt': return '作成日';
       case 'title':     return 'タイトル';
-      case 'priority':  return '優先度';
-      case 'status':    return 'ステータス';
     }
   };
 
@@ -318,19 +285,6 @@ export default function CollectionDetailScreen() {
     ]);
   }, [selectedCardIds, deleteCard]);
 
-  const updateCard = useCardStore((state) => state.updateCard);
-
-  const handleBulkStatusChange = useCallback(
-    (status: CardStatus) => {
-      if (selectedCardIds.size === 0) return;
-      selectedCardIds.forEach((cardId) => updateCard(cardId, { status }));
-      setIsSelectMode(false);
-      setSelectedCardIds(new Set());
-      hapticSuccess();
-    },
-    [selectedCardIds, updateCard]
-  );
-
   const handleCheckIssues = useCallback(async () => {
     setShowIssuesPanel(true);
     const dups = findDuplicates(allCards);
@@ -394,9 +348,7 @@ export default function CollectionDetailScreen() {
             {item.title || 'タイトルなし'}
           </ThemedText>
           <View style={styles.cardMeta}>
-            <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
-            <ThemedText style={styles.priorityText}>{'★'.repeat(item.priority)}</ThemedText>
-            {cacheEntries[item.id] && (
+{cacheEntries[item.id] && (
               <View style={styles.dlBadge}>
                 <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
               </View>
@@ -456,9 +408,7 @@ export default function CollectionDetailScreen() {
             {item.title || 'タイトルなし'}
           </ThemedText>
           <View style={styles.cardMeta}>
-            <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
-            <ThemedText style={styles.priorityText}>{'★'.repeat(item.priority)}</ThemedText>
-            {cacheEntries[item.id] && (
+{cacheEntries[item.id] && (
               <View style={styles.dlBadge}>
                 <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
               </View>
@@ -519,9 +469,7 @@ export default function CollectionDetailScreen() {
             {item.title || 'タイトルなし'}
           </ThemedText>
           <View style={styles.listCardMeta}>
-            <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
-            <ThemedText style={styles.priorityText}>{'★'.repeat(item.priority)}</ThemedText>
-            {cacheEntries[item.id] && (
+{cacheEntries[item.id] && (
               <View style={styles.dlBadge}>
                 <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
               </View>
@@ -568,11 +516,9 @@ export default function CollectionDetailScreen() {
             {isSelected && <ThemedText style={styles.checkmarkSmall}>✓</ThemedText>}
           </View>
         )}
-        <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
         <ThemedText style={[styles.headlineTitle, { color: colors.text }]} numberOfLines={1}>
           {item.title || 'タイトルなし'}
         </ThemedText>
-        <ThemedText style={styles.priorityText}>{'★'.repeat(item.priority)}</ThemedText>
         {cacheEntries[item.id] && (
           <View style={styles.dlBadge}>
             <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
@@ -608,9 +554,9 @@ export default function CollectionDetailScreen() {
     <ThemedView style={styles.emptyContainer}>
       <ThemedText style={styles.emptyIcon}>📝</ThemedText>
       <ThemedText style={[styles.emptyTitle, { color: colors.text }]}>
-        {filter === 'all' ? 'カードがありません' : `${getStatusLabel(filter)}のカードがありません`}
+        カードがありません
       </ThemedText>
-      {filter === 'all' && (
+      {allCards.length === 0 && (
         <>
           <ThemedText style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
             URLやスクリーンショットを{'\n'}保存してみましょう
@@ -752,25 +698,7 @@ export default function CollectionDetailScreen() {
         ]}
       >
         <Pressable
-          style={[styles.bulkActionButton, { backgroundColor: StatusColors.decided }]}
-          onPress={() => handleBulkStatusChange('decided')}
-        >
-          <ThemedText style={styles.bulkActionText}>決定</ThemedText>
-        </Pressable>
-        <Pressable
-          style={[styles.bulkActionButton, { backgroundColor: StatusColors.thinking }]}
-          onPress={() => handleBulkStatusChange('thinking')}
-        >
-          <ThemedText style={styles.bulkActionText}>検討中</ThemedText>
-        </Pressable>
-        <Pressable
-          style={[styles.bulkActionButton, { backgroundColor: '#9E9E9E' }]}
-          onPress={() => handleBulkStatusChange('rejected')}
-        >
-          <ThemedText style={styles.bulkActionText}>却下</ThemedText>
-        </Pressable>
-        <Pressable
-          style={[styles.bulkActionButton, { backgroundColor: StatusColors.rejected }]}
+          style={[styles.bulkActionButton, { backgroundColor: colors.destructive }]}
           onPress={handleBulkDelete}
         >
           <ThemedText style={styles.bulkActionText}>削除</ThemedText>
@@ -826,7 +754,7 @@ export default function CollectionDetailScreen() {
                 <ThemedText style={[styles.issueCardTitle, { color: colors.text }]}>
                   {getCardTitle(result.cardId)}
                 </ThemedText>
-                <ThemedText style={[styles.issueStatus, { color: StatusColors.rejected }]}>
+                <ThemedText style={[styles.issueStatus, { color: colors.destructive }]}>
                   {result.statusCode
                     ? `HTTP ${result.statusCode}`
                     : result.errorMessage || 'エラー'}
@@ -841,7 +769,7 @@ export default function CollectionDetailScreen() {
   const renderSortMenu = () =>
     showSortMenu && (
       <View style={[styles.sortMenu, { backgroundColor: colors.card }]}>
-        {(['createdAt', 'title', 'priority', 'status'] as SortType[]).map((sort) => (
+        {(['createdAt', 'title'] as SortType[]).map((sort) => (
           <Pressable
             key={sort}
             style={[
@@ -872,38 +800,6 @@ export default function CollectionDetailScreen() {
           )}
         </View>
 
-        {/* Status */}
-        <View style={styles.filterPanelSection}>
-          <ThemedText style={[styles.filterPanelSectionTitle, { color: colors.textSecondary }]}>
-            ステータス
-          </ThemedText>
-          <View style={[styles.filterRow, { flexWrap: 'wrap' }]}>
-            {(['all', 'thinking', 'decided', 'rejected'] as FilterType[]).map((status) => (
-              <Pressable
-                key={status}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor:
-                      filter === status ? getStatusChipColor(status) : 'transparent',
-                    borderColor: getStatusChipColor(status),
-                  },
-                ]}
-                onPress={() => { setFilter(status); hapticLight(); }}
-              >
-                <ThemedText
-                  style={[
-                    styles.filterChipText,
-                    { color: filter === status ? '#fff' : getStatusChipColor(status) },
-                  ]}
-                >
-                  {getStatusLabel(status)} ({getStatusCount(status)})
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
         {/* Labels */}
         {collectionLabels.length > 0 && (
           <View style={styles.filterPanelSection}>
@@ -912,28 +808,31 @@ export default function CollectionDetailScreen() {
             </ThemedText>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.filterRow}>
-                {collectionLabels.map((label) => (
-                  <Pressable
-                    key={label}
-                    style={[
-                      styles.filterChip,
-                      {
-                        backgroundColor: labelFilter === label ? colors.tint : 'transparent',
-                        borderColor: colors.tint,
-                      },
-                    ]}
-                    onPress={() => setLabelFilter(labelFilter === label ? null : label)}
-                  >
-                    <ThemedText
+                {collectionLabels.map((label) => {
+                  const isActive = labelFilters.has(label);
+                  return (
+                    <Pressable
+                      key={label}
                       style={[
-                        styles.filterChipText,
-                        { color: labelFilter === label ? '#fff' : colors.tint },
+                        styles.filterChip,
+                        {
+                          backgroundColor: isActive ? colors.tint : 'transparent',
+                          borderColor: colors.tint,
+                        },
                       ]}
+                      onPress={() => toggleLabelFilter(label)}
                     >
-                      {label}
-                    </ThemedText>
-                  </Pressable>
-                ))}
+                      <ThemedText
+                        style={[
+                          styles.filterChipText,
+                          { color: isActive ? '#fff' : colors.tint },
+                        ]}
+                      >
+                        {label}
+                      </ThemedText>
+                    </Pressable>
+                  );
+                })}
               </View>
             </ScrollView>
           </View>
@@ -1226,10 +1125,8 @@ const styles = StyleSheet.create({
 
   // Shared meta row
   cardMeta: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
-  statusDot: { width: 7, height: 7, borderRadius: 3.5, marginRight: 5 },
-  priorityText: { fontSize: 10, color: '#FF9500' },
   dlBadge: {
-    backgroundColor: StatusColors.decided,
+    backgroundColor: Colors.light.tint,
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 4,

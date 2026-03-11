@@ -7,7 +7,9 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useState, useMemo, useCallback } from 'react';
 import * as WebBrowser from 'expo-web-browser';
@@ -16,32 +18,25 @@ import { WebView } from 'react-native-webview';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useCardStore, useCollectionStore, useCacheStore } from '@/store';
-import { Colors, Typography, Spacing, StatusColors } from '@/constants/theme';
+import { Colors, Typography, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import type { CardStatus, CardPriority } from '@/types';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/utils/haptics';
 import { pickImages, takePhoto, showImagePickerOptions } from '@/utils/image-picker';
 import { fetchPageContent, wrapWithBase } from '@/utils/content-cache';
 import { UNCATEGORIZED_ID, UNCATEGORIZED_ICON, UNCATEGORIZED_LABEL } from '@/constants/collections';
 import AdBanner from '@/components/ad-banner';
 
-// Status configuration
-const STATUS_CONFIG: Record<CardStatus, { label: string; color: string }> = {
-  thinking: { label: '検討中', color: StatusColors.thinking },
-  decided:  { label: '決定',   color: StatusColors.decided },
-  rejected: { label: '却下',   color: StatusColors.rejected },
-};
-
-const PRIORITY_LABELS: Record<CardPriority, string> = {
-  1: '★',
-  2: '★★',
-  3: '★★★',
-};
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function CardDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
 
   const card = useCardStore((state) => state.cards.find((c) => c.id === id));
   const updateCard = useCardStore((state) => state.updateCard);
@@ -91,16 +86,6 @@ export default function CardDetailScreen() {
   const currentCollection = isUncategorized
     ? null
     : collections.find((c) => c.id === card.collectionId);
-
-  const handleStatusChange = (newStatus: CardStatus) => {
-    updateCard(card.id, { status: newStatus });
-    if (newStatus === 'decided') hapticSuccess(); else hapticLight();
-  };
-
-  const handlePriorityChange = (newPriority: CardPriority) => {
-    updateCard(card.id, { priority: newPriority });
-    hapticLight();
-  };
 
   const handleOpenUrl = async () => {
     if (card.url) {
@@ -261,6 +246,7 @@ export default function CardDetailScreen() {
   }, [card.id, clearCacheEntry]);
 
   return (
+    <>
     <ScrollView style={[styles.container, { backgroundColor: colors.groupBackground }]}>
       {/* Hero thumbnail */}
       {card.thumbnail ? (
@@ -324,8 +310,8 @@ export default function CardDetailScreen() {
             <View style={styles.offlineRow}>
               {cacheEntry ? (
                 <>
-                  <ThemedText style={[styles.dlBadgeLabel, { color: StatusColors.decided }]}>
-                    DL済 ({new Date(cacheEntry.cachedAt).toLocaleDateString('ja-JP')})
+                  <ThemedText style={[styles.dlBadgeLabel, { color: colors.tint }]}>
+                    DL済 ({new Date(cacheEntry.cachedAt).toLocaleDateString('ja-JP')}) · {formatBytes(cacheEntry.sizeBytes ?? 0)}
                   </ThemedText>
                   <View style={styles.offlineActions}>
                     <Pressable
@@ -334,10 +320,10 @@ export default function CardDetailScreen() {
                         { backgroundColor: colors.tint },
                         pressed && styles.pressedOpacity,
                       ]}
-                      onPress={() => setShowCachedContent(!showCachedContent)}
+                      onPress={() => setShowCachedContent(true)}
                     >
                       <ThemedText style={styles.offlineBtnText}>
-                        {showCachedContent ? '閉じる' : 'オフライン表示'}
+                        オフライン表示
                       </ThemedText>
                     </Pressable>
                     <Pressable
@@ -363,19 +349,9 @@ export default function CardDetailScreen() {
                       ]}
                       onPress={handleDeleteCache}
                     >
-                      <ThemedText style={[styles.offlineBtnTextSec, { color: StatusColors.rejected }]}>削除</ThemedText>
+                      <ThemedText style={[styles.offlineBtnTextSec, { color: colors.destructive }]}>削除</ThemedText>
                     </Pressable>
                   </View>
-                  {showCachedContent && (
-                    <View style={[styles.webviewWrap, { borderColor: colors.separator }]}>
-                      <WebView
-                        source={{ html: wrapWithBase(cacheEntry.html, card.url!) }}
-                        style={styles.webview}
-                        scrollEnabled={false}
-                        nestedScrollEnabled
-                      />
-                    </View>
-                  )}
                 </>
               ) : (
                 <Pressable
@@ -458,67 +434,6 @@ export default function CardDetailScreen() {
           </View>
         )}
 
-        {/* Status – iOS Segmented Control */}
-        <ThemedText style={[styles.sectionLabel, { color: colors.textSecondary }]}>ステータス</ThemedText>
-        <View style={[styles.groupCard, styles.segmentGroupCard, { backgroundColor: colors.card }]}>
-          <View style={[styles.segmentControl, { backgroundColor: colors.groupBackground }]}>
-            {(['thinking', 'decided', 'rejected'] as CardStatus[]).map((status) => (
-              <Pressable
-                key={status}
-                style={[
-                  styles.segmentBtn,
-                  card.status === status && {
-                    backgroundColor: STATUS_CONFIG[status].color,
-                  },
-                  card.status === status && styles.segmentBtnActive,
-                ]}
-                onPress={() => handleStatusChange(status)}
-              >
-                <ThemedText
-                  style={[
-                    styles.segmentBtnText,
-                    {
-                      color: card.status === status ? '#fff' : colors.text,
-                      fontWeight: card.status === status ? '600' : '400',
-                    },
-                  ]}
-                >
-                  {STATUS_CONFIG[status].label}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        {/* Priority – iOS Segmented Control */}
-        <ThemedText style={[styles.sectionLabel, { color: colors.textSecondary }]}>優先度</ThemedText>
-        <View style={[styles.groupCard, styles.segmentGroupCard, { backgroundColor: colors.card }]}>
-          <View style={[styles.segmentControl, { backgroundColor: colors.groupBackground }]}>
-            {([1, 2, 3] as CardPriority[]).map((p) => (
-              <Pressable
-                key={p}
-                style={[
-                  styles.segmentBtn,
-                  card.priority === p && { backgroundColor: colors.tint },
-                  card.priority === p && styles.segmentBtnActive,
-                ]}
-                onPress={() => handlePriorityChange(p)}
-              >
-                <ThemedText
-                  style={[
-                    styles.segmentBtnText,
-                    {
-                      color: card.priority === p ? '#fff' : colors.text,
-                      fontWeight: card.priority === p ? '600' : '400',
-                    },
-                  ]}
-                >
-                  {PRIORITY_LABELS[p]}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-        </View>
 
         {/* Labels */}
         <ThemedText style={[styles.sectionLabel, { color: colors.textSecondary }]}>
@@ -729,7 +644,7 @@ export default function CardDetailScreen() {
           style={({ pressed }) => [styles.deleteBtn, pressed && styles.pressedOpacity]}
           onPress={handleDelete}
         >
-          <ThemedText style={[styles.deleteBtnText, { color: StatusColors.rejected }]}>
+          <ThemedText style={[styles.deleteBtnText, { color: colors.destructive }]}>
             カードを削除
           </ThemedText>
         </Pressable>
@@ -737,6 +652,34 @@ export default function CardDetailScreen() {
 
       <AdBanner />
     </ScrollView>
+
+    {/* Offline fullscreen modal */}
+    <Modal
+      visible={showCachedContent}
+      animationType="slide"
+      onRequestClose={() => setShowCachedContent(false)}
+    >
+      <View style={[styles.offlineModalContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.offlineModalHeader, { paddingTop: insets.top, borderBottomColor: colors.separator }]}>
+          <ThemedText style={[styles.offlineModalTitle, { color: colors.text }]} numberOfLines={1}>
+            {card.title}
+          </ThemedText>
+          <Pressable
+            style={({ pressed }) => [styles.offlineModalClose, pressed && styles.pressedOpacity]}
+            onPress={() => setShowCachedContent(false)}
+          >
+            <ThemedText style={[styles.offlineModalCloseText, { color: colors.tint }]}>閉じる</ThemedText>
+          </Pressable>
+        </View>
+        {cacheEntry && (
+          <WebView
+            source={{ html: wrapWithBase(cacheEntry.html, card.url!) }}
+            style={styles.offlineModalWebview}
+          />
+        )}
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -800,9 +743,6 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.groupRadius,
     overflow: 'hidden',
   },
-  segmentGroupCard: {
-    padding: 6,
-  },
 
   // Separator
   separator: {
@@ -864,14 +804,32 @@ const styles = StyleSheet.create({
     ...Typography.footnote,
     fontWeight: '500',
   },
-  webviewWrap: {
-    marginTop: 10,
-    height: 400,
-    borderRadius: 8,
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
+  // Offline fullscreen modal
+  offlineModalContainer: {
+    flex: 1,
   },
-  webview: {
+  offlineModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.screenHorizontal,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  offlineModalTitle: {
+    ...Typography.headline,
+    flex: 1,
+    marginRight: 12,
+  },
+  offlineModalClose: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  offlineModalCloseText: {
+    ...Typography.body,
+    fontWeight: '600',
+  },
+  offlineModalWebview: {
     flex: 1,
   },
   downloadBtn: {
@@ -918,29 +876,6 @@ const styles = StyleSheet.create({
   },
   collectionOptionText: {
     ...Typography.body,
-  },
-
-  // Segmented control
-  segmentControl: {
-    flexDirection: 'row',
-    borderRadius: 8,
-    padding: 2,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: 7,
-    alignItems: 'center',
-  },
-  segmentBtnActive: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  segmentBtnText: {
-    ...Typography.subhead,
   },
 
   // Labels

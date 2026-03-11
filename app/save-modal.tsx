@@ -83,8 +83,6 @@ export default function SaveModal() {
       thumbnail,
       favicon,
       memo,
-      priority: 2,
-      status: 'thinking',
       labels: [],
       checklist: [],
       images: [],

@@ -66,7 +66,8 @@
       "Bash(git add --all -- \":\\(exclude\\)nul\" && git status --short | head -15)",
       "Bash(git commit -m \"$\\(cat <<'EOF'\nfeat: favicon fallback for cards without thumbnails \\(v1.1.0\\)\n\n- Add favicon extraction from HTML \\(apple-touch-icon, link rel icon\\)\n- Fall back to Google Favicon API for reliable PNG icons\n- Show favicon when og:image is unavailable on all card views\n- Add URL validation with error message on save modal\n- Disable save button for invalid URL input\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git tag v1.1.0 && git push origin develop && git push origin v1.1.0)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git tag:*)"
     ]
   }
 }

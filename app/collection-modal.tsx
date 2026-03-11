@@ -6,7 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useCollectionStore, useCardStore, useCacheStore } from '@/store';
-import { Colors, Typography, Spacing, StatusColors } from '@/constants/theme';
+import { Colors, Typography, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticSuccess, hapticWarning } from '@/utils/haptics';
 
@@ -199,7 +199,7 @@ export default function CollectionModal() {
           style={({ pressed }) => [styles.deleteButton, pressed && styles.pressedOpacity]}
           onPress={handleDelete}
         >
-          <ThemedText style={[styles.deleteButtonText, { color: StatusColors.rejected }]}>
+          <ThemedText style={[styles.deleteButtonText, { color: colors.destructive }]}>
             コレクションを削除
           </ThemedText>
         </Pressable>

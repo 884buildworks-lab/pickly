@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Card, CreateCardInput, UpdateCardInput, CardStatus } from '@/types';
+import type { Card, CreateCardInput, UpdateCardInput } from '@/types';
 
 interface CardState {
   cards: Card[];
@@ -13,8 +13,6 @@ interface CardState {
   deleteCardsByCollectionId: (collectionId: string) => void;
   getCardById: (id: string) => Card | undefined;
   getCardsByCollectionId: (collectionId: string) => Card[];
-  getCardsByStatus: (collectionId: string, status: CardStatus) => Card[];
-
   // Label helpers
   getAllLabels: () => string[];
 
@@ -73,12 +71,6 @@ export const useCardStore = create<CardState>()(
       getCardsByCollectionId: (collectionId) => {
         return get().cards
           .filter((c) => c.collectionId === collectionId)
-          .sort((a, b) => b.createdAt - a.createdAt);
-      },
-
-      getCardsByStatus: (collectionId, status) => {
-        return get().cards
-          .filter((c) => c.collectionId === collectionId && c.status === status)
           .sort((a, b) => b.createdAt - a.createdAt);
       },
 
