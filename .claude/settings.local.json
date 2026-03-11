@@ -63,7 +63,10 @@
       "Bash(git commit -m \"$\\(cat <<'EOF'\nfix: emoji icon clipping on multiple screens \\(v1.0.1\\)\n\nAdd lineHeight to emoji text styles to prevent top/bottom clipping:\n- Home screen: card grid, list view, drawer icons, header title\n- Collection modal: icon preview\n- Card detail: hero emoji\nAlso adds EAS build config and .gitignore for nul file.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git tag v1.0.1 && git push -u origin develop && git push origin v1.0.1)",
       "WebFetch(domain:www.google.co.jp)",
-      "Bash(git add --all -- \":\\(exclude\\)nul\" && git status --short | head -15)"
+      "Bash(git add --all -- \":\\(exclude\\)nul\" && git status --short | head -15)",
+      "Bash(git commit -m \"$\\(cat <<'EOF'\nfeat: favicon fallback for cards without thumbnails \\(v1.1.0\\)\n\n- Add favicon extraction from HTML \\(apple-touch-icon, link rel icon\\)\n- Fall back to Google Favicon API for reliable PNG icons\n- Show favicon when og:image is unavailable on all card views\n- Add URL validation with error message on save modal\n- Disable save button for invalid URL input\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git tag v1.1.0 && git push origin develop && git push origin v1.1.0)",
+      "Bash(git add:*)"
     ]
   }
 }

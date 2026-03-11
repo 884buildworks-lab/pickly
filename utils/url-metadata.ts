@@ -203,6 +203,23 @@ export async function fetchUrlMetadata(url: string): Promise<UrlMetadata> {
 }
 
 /**
+ * Simplify a URL into a readable short title
+ * Removes protocol, query params, fragment, trailing slash
+ * e.g. "https://www.google.co.jp/mail/help/intl/ja/about.html?vm=r" → "www.google.co.jp/mail/help/intl/ja/about.html"
+ */
+export function simplifyUrlForTitle(url: string): string {
+  try {
+    const parsed = new URL(url);
+    // hostname + pathname, remove trailing slash
+    let result = parsed.hostname + parsed.pathname;
+    if (result.endsWith('/')) result = result.slice(0, -1);
+    return result;
+  } catch {
+    return url;
+  }
+}
+
+/**
  * Check if a string is a valid URL
  */
 export function isValidUrl(string: string): boolean {

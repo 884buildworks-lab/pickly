@@ -15,7 +15,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useCollectionStore, useCardStore, useAppStore } from '@/store';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { fetchUrlMetadata, isValidUrl } from '@/utils/url-metadata';
+import { fetchUrlMetadata, isValidUrl, simplifyUrlForTitle } from '@/utils/url-metadata';
 import { hapticSuccess } from '@/utils/haptics';
 import { UNCATEGORIZED_ID, UNCATEGORIZED_ICON, UNCATEGORIZED_LABEL } from '@/constants/collections';
 
@@ -78,7 +78,7 @@ export default function SaveModal() {
     const collectionId = selectedCollectionId ?? UNCATEGORIZED_ID;
     addCard({
       collectionId,
-      title: title || url || '無題',
+      title: title || (url ? simplifyUrlForTitle(url) : '無題'),
       url: url || undefined,
       thumbnail,
       favicon,
