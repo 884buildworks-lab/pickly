@@ -16,6 +16,9 @@ interface AppState {
   // ホーム画面の選択コレクション（null=すべて）
   selectedCollectionId: string | null;
   setSelectedCollectionId: (id: string | null) => void;
+  // 保存時にオフラインDLを自動実行するか
+  autoDownload: boolean;
+  setAutoDownload: (value: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -29,6 +32,8 @@ export const useAppStore = create<AppState>()(
       setSharedUrl: (url) => set({ sharedUrl: url }),
       selectedCollectionId: null,
       setSelectedCollectionId: (id) => set({ selectedCollectionId: id }),
+      autoDownload: false,
+      setAutoDownload: (value) => set({ autoDownload: value }),
     }),
     {
       name: 'pickly-app',
@@ -36,6 +41,7 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         hasCompletedOnboarding: state.hasCompletedOnboarding,
         themeMode: state.themeMode,
+        autoDownload: state.autoDownload,
         // sharedUrl は永続化しない
       }),
     }

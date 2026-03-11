@@ -13,9 +13,11 @@ import { router } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useCollectionStore, useCardStore, useAppStore } from '@/store';
+import { useCacheStore } from '@/store/cache-store';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { fetchUrlMetadata, isValidUrl, simplifyUrlForTitle } from '@/utils/url-metadata';
+import { fetchPageContent } from '@/utils/content-cache';
 import { hapticSuccess } from '@/utils/haptics';
 import { UNCATEGORIZED_ID, UNCATEGORIZED_ICON, UNCATEGORIZED_LABEL } from '@/constants/collections';
 
@@ -30,6 +32,8 @@ export default function SaveModal() {
 
   const sharedUrl = useAppStore((state) => state.sharedUrl);
   const setSharedUrl = useAppStore((state) => state.setSharedUrl);
+  const autoDownload = useAppStore((state) => state.autoDownload);
+  const setCacheEntry = useCacheStore((state) => state.setCacheEntry);
 
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -76,7 +80,7 @@ export default function SaveModal() {
 
   const handleSave = () => {
     const collectionId = selectedCollectionId ?? UNCATEGORIZED_ID;
-    addCard({
+    const card = addCard({
       collectionId,
       title: title || (url ? simplifyUrlForTitle(url) : '無題'),
       url: url || undefined,
@@ -88,6 +92,14 @@ export default function SaveModal() {
       images: [],
     });
     if (selectedCollectionId) setLastUsedCollectionId(selectedCollectionId);
+
+    // Auto-download for offline use if enabled
+    if (autoDownload && url && isValidUrl(url)) {
+      fetchPageContent(url)
+        .then((html) => setCacheEntry(card.id, html))
+        .catch(() => { /* silent fail for auto-download */ });
+    }
+
     hapticSuccess();
     router.back();
   };

@@ -1,4 +1,4 @@
-import { StyleSheet, ScrollView, Pressable, Alert, Linking, View } from 'react-native';
+import { StyleSheet, ScrollView, Pressable, Alert, Linking, View, Switch } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -70,6 +70,8 @@ export default function SettingsScreen() {
   const setHasCompletedOnboarding = useAppStore((state) => state.setHasCompletedOnboarding);
   const themeMode = useAppStore((state) => state.themeMode);
   const setThemeMode = useAppStore((state) => state.setThemeMode);
+  const autoDownload = useAppStore((state) => state.autoDownload);
+  const setAutoDownload = useAppStore((state) => state.setAutoDownload);
 
   const handleThemeChange = (mode: ThemeMode) => {
     setThemeMode(mode);
@@ -198,6 +200,29 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* ---- Save settings ---- */}
+      <SectionHeader label="保存設定" />
+      <View style={[styles.group, { backgroundColor: colors.card }]}>
+        <View style={[styles.cell, { backgroundColor: colors.card }]}>
+          <View style={styles.switchLabelWrap}>
+            <ThemedText style={[styles.cellLabel, { color: colors.text }]}>
+              オフライン用に自動ダウンロード
+            </ThemedText>
+            <ThemedText style={[styles.switchDescription, { color: colors.textSecondary }]}>
+              保存時にページ内容を自動でダウンロードします
+            </ThemedText>
+          </View>
+          <Switch
+            value={autoDownload}
+            onValueChange={(value) => {
+              setAutoDownload(value);
+              hapticLight();
+            }}
+            trackColor={{ false: colors.groupBackground, true: colors.tint }}
+          />
+        </View>
+      </View>
+
       {/* ---- Data management ---- */}
       <SectionHeader label="データ管理" />
       <View style={[styles.group, styles.groupStacked, { backgroundColor: colors.card }]}>
@@ -286,6 +311,14 @@ const styles = StyleSheet.create({
   cellLabel: {
     flex: 1,
     ...Typography.body,
+  },
+  switchLabelWrap: {
+    flex: 1,
+    marginRight: 12,
+  },
+  switchDescription: {
+    ...Typography.caption,
+    marginTop: 2,
   },
   cellValue: {
     ...Typography.body,

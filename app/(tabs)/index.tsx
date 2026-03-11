@@ -59,6 +59,8 @@ export default function HomeScreen() {
   const [viewMode, setViewMode] = useState<ViewMode>('grid1');
   const [labelFilters, setLabelFilters] = useState<Set<string>>(new Set());
   const [labelModalVisible, setLabelModalVisible] = useState(false);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
 
   // Collect all labels from visible cards
@@ -165,48 +167,73 @@ export default function HomeScreen() {
     [collections]
   );
 
+  const toggleSelectCard = useCallback((cardId: string) => {
+    setSelectedCardIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(cardId)) next.delete(cardId);
+      else next.add(cardId);
+      return next;
+    });
+  }, []);
+
+  const exitSelectMode = useCallback(() => {
+    setIsSelectMode(false);
+    setSelectedCardIds(new Set());
+  }, []);
+
+  const handleBulkDelete = useCallback(() => {
+    if (selectedCardIds.size === 0) return;
+    Alert.alert(
+      '削除確認',
+      `${selectedCardIds.size}件のカードを削除しますか？`,
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        {
+          text: '削除する',
+          style: 'destructive',
+          onPress: () => {
+            selectedCardIds.forEach((id) => deleteCard(id));
+            hapticWarning();
+            exitSelectMode();
+          },
+        },
+      ]
+    );
+  }, [selectedCardIds, deleteCard, exitSelectMode]);
+
   const handleCardLongPress = useCallback(
     (card: Card) => {
       hapticLight();
-      Alert.alert(card.title || 'カード', undefined, [
-        {
-          text: '削除',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert('削除確認', 'このカードを削除しますか？', [
-              { text: 'キャンセル', style: 'cancel' },
-              {
-                text: '削除する',
-                style: 'destructive',
-                onPress: () => {
-                  deleteCard(card.id);
-                  hapticWarning();
-                },
-              },
-            ]);
-          },
-        },
-        { text: 'キャンセル', style: 'cancel' },
-      ]);
+      if (!isSelectMode) {
+        setIsSelectMode(true);
+        setSelectedCardIds(new Set([card.id]));
+      }
     },
-    [deleteCard]
+    [isSelectMode]
   );
 
   // --- Card renderers ---
 
   const renderCard = (item: Card) => {
     const collection = getCollectionForCard(item.collectionId);
-    return (
-      <Link key={item.id} href={`/card/${item.id}`} asChild>
+    const isSelected = selectedCardIds.has(item.id);
+    const cardContent = (
         <Pressable
           style={({ pressed }) => [
             styles.card,
             { backgroundColor: colors.card },
+            isSelectMode && isSelected && { borderColor: colors.tint, borderWidth: 2 },
             pressed && styles.pressedOpacity,
           ]}
+          onPress={isSelectMode ? () => toggleSelectCard(item.id) : undefined}
           onLongPress={() => handleCardLongPress(item)}
           delayLongPress={500}
         >
+          {isSelectMode && (
+            <View style={[styles.selectBadge, { backgroundColor: isSelected ? colors.tint : colors.border }]}>
+              {isSelected && <ThemedText style={styles.selectBadgeCheck}>✓</ThemedText>}
+            </View>
+          )}
           {item.thumbnail ? (
             <View style={[styles.cardThumbnailWrap, { backgroundColor: colors.groupBackground }]}>
               <Image source={{ uri: item.thumbnail }} style={styles.cardThumbnail} resizeMode="cover" />
@@ -242,14 +269,66 @@ export default function HomeScreen() {
             )}
           </View>
         </Pressable>
-      </Link>
     );
+    if (isSelectMode) return <View key={item.id}>{cardContent}</View>;
+    return <Link key={item.id} href={`/card/${item.id}`} asChild>{cardContent}</Link>;
   };
 
   const renderGrid2Card = (item: Card) => {
     const collection = getCollectionForCard(item.collectionId);
     return (
       <View key={item.id} style={{ width: GRID2_CARD_WIDTH }}>
+        {isSelectMode ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.grid2Card,
+              { backgroundColor: colors.card },
+              selectedCardIds.has(item.id) && { borderColor: colors.tint, borderWidth: 2 },
+              pressed && styles.pressedOpacity,
+            ]}
+            onPress={() => toggleSelectCard(item.id)}
+            onLongPress={() => handleCardLongPress(item)}
+            delayLongPress={500}
+          >
+            <View style={[styles.selectBadgeSmall, { backgroundColor: selectedCardIds.has(item.id) ? colors.tint : colors.border }]}>
+              {selectedCardIds.has(item.id) && <ThemedText style={styles.selectBadgeCheckSmall}>✓</ThemedText>}
+            </View>
+            {item.thumbnail ? (
+              <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
+                <Image source={{ uri: item.thumbnail }} style={styles.grid2ThumbImg} resizeMode="cover" />
+              </View>
+            ) : item.favicon ? (
+              <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
+                <Image source={{ uri: item.favicon }} style={styles.faviconIconSmall} resizeMode="contain" />
+              </View>
+            ) : (
+              <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
+                <ThemedText style={styles.grid2PlaceholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
+              </View>
+            )}
+            <View style={styles.grid2Body}>
+              <ThemedText style={styles.grid2Title} numberOfLines={2}>
+                {item.title || 'タイトルなし'}
+              </ThemedText>
+              <View style={styles.cardMeta}>
+{cacheEntries[item.id] && (
+                  <View style={styles.dlBadge}>
+                    <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
+                  </View>
+                )}
+              </View>
+              {!selectedCollectionId && (
+                <ThemedText style={[styles.collectionLabel, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {item.collectionId === UNCATEGORIZED_ID
+                    ? `${UNCATEGORIZED_ICON} ${UNCATEGORIZED_LABEL}`
+                    : collection
+                    ? `${collection.icon} ${collection.name}`
+                    : `${UNCATEGORIZED_ICON} ${UNCATEGORIZED_LABEL}`}
+                </ThemedText>
+              )}
+            </View>
+          </Pressable>
+        ) : (
         <Link href={`/card/${item.id}`} asChild>
           <Pressable
             style={({ pressed }) => [
@@ -296,24 +375,32 @@ export default function HomeScreen() {
             </View>
           </Pressable>
         </Link>
+        )}
       </View>
     );
   };
 
   const renderListCard = (item: Card) => {
     const collection = getCollectionForCard(item.collectionId);
-    return (
-      <Link key={item.id} href={`/card/${item.id}`} asChild>
+    const isSelected = selectedCardIds.has(item.id);
+    const cardContent = (
         <Pressable
           style={({ pressed }) => [
             styles.listCard,
             { backgroundColor: colors.card },
+            isSelectMode && isSelected && { borderColor: colors.tint, borderWidth: 2 },
             pressed && styles.pressedOpacity,
           ]}
+          onPress={isSelectMode ? () => toggleSelectCard(item.id) : undefined}
           onLongPress={() => handleCardLongPress(item)}
           delayLongPress={500}
         >
           <View style={styles.listCardInner}>
+            {isSelectMode && (
+              <View style={[styles.selectBadgeList, { backgroundColor: isSelected ? colors.tint : colors.border }]}>
+                {isSelected && <ThemedText style={styles.selectBadgeCheckSmall}>✓</ThemedText>}
+              </View>
+            )}
             {item.thumbnail ? (
               <Image
                 source={{ uri: item.thumbnail }}
@@ -354,8 +441,9 @@ export default function HomeScreen() {
             <ThemedText style={[styles.listChevron, { color: colors.textSecondary }]}>›</ThemedText>
           </View>
         </Pressable>
-      </Link>
     );
+    if (isSelectMode) return <View key={item.id}>{cardContent}</View>;
+    return <Link key={item.id} href={`/card/${item.id}`} asChild>{cardContent}</Link>;
   };
 
   const renderEmptyState = () => (
@@ -669,6 +757,27 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Select mode toolbar */}
+      {isSelectMode && (
+        <View style={[styles.selectToolbar, { backgroundColor: colors.card, borderBottomColor: colors.separator }]}>
+          <Pressable onPress={exitSelectMode} style={styles.selectToolbarBtn}>
+            <ThemedText style={[styles.selectToolbarBtnText, { color: colors.tint }]}>キャンセル</ThemedText>
+          </Pressable>
+          <ThemedText style={[styles.selectToolbarCount, { color: colors.text }]}>
+            {selectedCardIds.size}件選択中
+          </ThemedText>
+          <Pressable
+            onPress={handleBulkDelete}
+            style={({ pressed }) => [styles.selectToolbarBtn, pressed && styles.pressedOpacity]}
+            disabled={selectedCardIds.size === 0}
+          >
+            <ThemedText style={[styles.selectToolbarBtnText, { color: selectedCardIds.size > 0 ? colors.destructive : colors.textSecondary }]}>
+              削除
+            </ThemedText>
+          </Pressable>
+        </View>
+      )}
 
       {/* Card feed */}
       <ScrollView contentContainerStyle={styles.feedContent}>
@@ -1025,6 +1134,67 @@ const styles = StyleSheet.create({
   collectionLabel: {
     fontSize: Typography.caption.fontSize,
     marginTop: 2,
+  },
+
+  // ---- Select mode ----
+  selectToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.screenHorizontal,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  selectToolbarBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  selectToolbarBtnText: {
+    ...Typography.body,
+    fontWeight: '600',
+  },
+  selectToolbarCount: {
+    ...Typography.headline,
+  },
+  selectBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  selectBadgeSmall: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  selectBadgeList: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  selectBadgeCheck: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  selectBadgeCheckSmall: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
 
   // ---- Pressed state ----
