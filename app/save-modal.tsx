@@ -19,11 +19,13 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { fetchUrlMetadata, isValidUrl, simplifyUrlForTitle } from '@/utils/url-metadata';
 import { fetchPageContent } from '@/utils/content-cache';
 import { hapticSuccess } from '@/utils/haptics';
+import { useResponsive } from '@/hooks/use-responsive';
 import { UNCATEGORIZED_ID, UNCATEGORIZED_ICON, UNCATEGORIZED_LABEL } from '@/constants/collections';
 
 export default function SaveModal() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const responsive = useResponsive();
 
   const collections = useCollectionStore((state) => state.collections);
   const lastUsedCollectionId = useCollectionStore((state) => state.lastUsedCollectionId);
@@ -107,7 +109,7 @@ export default function SaveModal() {
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.groupBackground }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, responsive.maxContentWidth ? { maxWidth: responsive.maxContentWidth, alignSelf: 'center' as const, width: '100%' } : undefined]}
       keyboardShouldPersistTaps="handled"
     >
       {/* ---- URL ---- */}

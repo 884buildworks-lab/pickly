@@ -9,6 +9,7 @@ import { useCollectionStore, useCardStore, useCacheStore } from '@/store';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticSuccess, hapticWarning } from '@/utils/haptics';
+import { useResponsive } from '@/hooks/use-responsive';
 
 const EMOJI_LIST = [
   '📁', '⭐', '❤️', '🎁', '✈️', '🏠', '🍽️', '👕',
@@ -21,6 +22,7 @@ export default function CollectionModal() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const responsive = useResponsive();
 
   const collection = useCollectionStore((state) =>
     id ? state.collections.find((c) => c.id === id) : undefined
@@ -108,6 +110,8 @@ export default function CollectionModal() {
               style={({ pressed }) => [
                 styles.emojiButton,
                 {
+                  width: responsive.emojiButtonSize,
+                  height: responsive.emojiButtonSize,
                   backgroundColor:
                     icon === emoji ? colors.tint + '22' : 'transparent',
                 },

@@ -24,6 +24,7 @@ import { hapticLight, hapticSuccess, hapticWarning } from '@/utils/haptics';
 import { pickImages, takePhoto, showImagePickerOptions } from '@/utils/image-picker';
 import { fetchPageContent, wrapWithBase } from '@/utils/content-cache';
 import { UNCATEGORIZED_ID, UNCATEGORIZED_ICON, UNCATEGORIZED_LABEL } from '@/constants/collections';
+import { useResponsive } from '@/hooks/use-responsive';
 import AdBanner from '@/components/ad-banner';
 
 function formatBytes(bytes: number): string {
@@ -37,6 +38,7 @@ export default function CardDetailScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const responsive = useResponsive();
 
   const card = useCardStore((state) => state.cards.find((c) => c.id === id));
   const updateCard = useCardStore((state) => state.updateCard);
@@ -255,7 +257,7 @@ export default function CardDetailScreen() {
         </View>
       ) : card.favicon ? (
         <View style={[styles.heroWrap, styles.heroPlaceholder, { backgroundColor: colors.card }]}>
-          <Image source={{ uri: card.favicon }} style={styles.heroFavicon} resizeMode="contain" />
+          <Image source={{ uri: card.favicon }} style={[styles.heroFavicon, { width: responsive.faviconSize * 1.33, height: responsive.faviconSize * 1.33 }]} resizeMode="contain" />
         </View>
       ) : (
         <View style={[styles.heroWrap, styles.heroPlaceholder, { backgroundColor: colors.card }]}>
@@ -263,7 +265,7 @@ export default function CardDetailScreen() {
         </View>
       )}
 
-      <View style={styles.content}>
+      <View style={[styles.content, { padding: responsive.screenHorizontal, maxWidth: responsive.maxContentWidth || undefined, alignSelf: responsive.maxContentWidth ? 'center' as const : undefined, width: responsive.maxContentWidth ? '100%' : undefined }]}>
         {/* Title */}
         <Pressable
           onPress={() => { setEditTitle(card.title); setIsEditingTitle(true); }}

@@ -26,11 +26,13 @@ import {
 } from '@/utils/url-checker';
 import type { Card } from '@/types';
 import AdBanner from '@/components/ad-banner';
+import { useResponsive } from '@/hooks/use-responsive';
 
 type SortType = 'createdAt' | 'title';
 type SortOrder = 'asc' | 'desc';
 type ViewMode = 'grid' | 'grid2' | 'list' | 'headline';
 
+// Default values for StyleSheet (overridden at runtime by useResponsive)
 const HORIZONTAL_PADDING = Spacing.screenHorizontal;
 const CARD_GAP = 8;
 
@@ -38,6 +40,9 @@ export default function CollectionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const responsive = useResponsive();
+  const HORIZONTAL_PADDING = responsive.screenHorizontal;
+  const CARD_GAP = responsive.gridGap;
   const [containerWidth, setContainerWidth] = useState(0);
   const [sortBy, setSortBy] = useState<SortType>('createdAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -56,9 +61,10 @@ export default function CollectionDetailScreen() {
   const [isCheckingLinks, setIsCheckingLinks] = useState(false);
   const [checkProgress, setCheckProgress] = useState({ completed: 0, total: 0 });
 
+  const grid2Cols = responsive.grid2Columns;
   const cardWidth =
     containerWidth > 0
-      ? Math.floor((containerWidth - HORIZONTAL_PADDING * 2 - CARD_GAP) / 2)
+      ? Math.floor((containerWidth - HORIZONTAL_PADDING * 2 - CARD_GAP * (grid2Cols - 1)) / grid2Cols)
       : 150;
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
@@ -422,9 +428,9 @@ export default function CollectionDetailScreen() {
         </View>
       </Pressable>
     );
-    if (isSelectMode) return <View key={item.id} style={styles.grid2Wrapper}>{cardContent}</View>;
+    if (isSelectMode) return <View key={item.id} style={[styles.grid2Wrapper, { width: cardWidth }]}>{cardContent}</View>;
     return (
-      <View key={item.id} style={styles.grid2Wrapper}>
+      <View key={item.id} style={[styles.grid2Wrapper, { width: cardWidth }]}>
         <Link href={`/card/${item.id}`} asChild>{cardContent}</Link>
       </View>
     );
@@ -456,11 +462,11 @@ export default function CollectionDetailScreen() {
         {item.thumbnail ? (
           <Image
             source={{ uri: item.thumbnail }}
-            style={styles.listThumb}
+            style={[styles.listThumb, { width: responsive.listThumbSize * 0.78, height: responsive.listThumbSize * 0.78, borderRadius: Math.round(8 * responsive.spacingScale) }]}
             resizeMode="cover"
           />
         ) : (
-          <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground }]}>
+          <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground, width: responsive.listThumbSize * 0.78, height: responsive.listThumbSize * 0.78, borderRadius: Math.round(8 * responsive.spacingScale) }]}>
             <ThemedText style={styles.listThumbText}>🔗</ThemedText>
           </View>
         )}
@@ -944,7 +950,7 @@ export default function CollectionDetailScreen() {
       {renderSortMenu()}
       {renderIssuesPanel()}
 
-      <ScrollView contentContainerStyle={styles.listContent}>
+      <ScrollView contentContainerStyle={[styles.listContent, { paddingHorizontal: HORIZONTAL_PADDING }]}>
         {sortedCards.length === 0 ? (
           renderEmptyState()
         ) : (

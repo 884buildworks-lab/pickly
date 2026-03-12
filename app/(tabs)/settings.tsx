@@ -8,6 +8,7 @@ import { Colors, Typography, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticWarning, hapticSuccess, hapticLight } from '@/utils/haptics';
 import { exportData, importData } from '@/utils/data-transfer';
+import { useResponsive } from '@/hooks/use-responsive';
 
 // ---- Small helper components ----
 
@@ -64,6 +65,7 @@ function Cell({ label, value, destructive, onPress, showChevron = false }: CellP
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
+  const responsive = useResponsive();
 
   const collections = useCollectionStore((state) => state.collections);
   const cards = useCardStore((state) => state.cards);
@@ -141,7 +143,7 @@ export default function SettingsScreen() {
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.groupBackground }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, responsive.maxContentWidth ? { maxWidth: responsive.maxContentWidth, alignSelf: 'center' as const, width: '100%' } : undefined]}
     >
       {/* ---- Stats ---- */}
       <SectionHeader label="統計" />

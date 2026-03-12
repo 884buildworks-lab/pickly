@@ -5,7 +5,6 @@ import {
   View,
   Image,
   Animated,
-  Dimensions,
   Modal,
   Alert,
 } from 'react-native';
@@ -20,19 +19,10 @@ import { useCollectionStore, useCardStore, useAppStore, useCacheStore } from '@/
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticLight, hapticWarning } from '@/utils/haptics';
+import { useResponsive, scale } from '@/hooks/use-responsive';
 import { UNCATEGORIZED_ID, UNCATEGORIZED_ICON, UNCATEGORIZED_LABEL } from '@/constants/collections';
 import AdBanner from '@/components/ad-banner';
 import type { Card, Collection } from '@/types';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const DRAWER_WIDTH = SCREEN_WIDTH * 0.75;
-const GRID_PADDING = Spacing.screenHorizontal;
-const GRID_GAP = 8;
-const GRID2_CARD_WIDTH = Math.floor((SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP) / 2);
-
-// List thumbnail dimensions per iOS HIG (72 pt)
-const LIST_THUMB_SIZE = 72;
-const LIST_THUMB_RADIUS = 8;
 
 type ViewMode = 'grid1' | 'grid2' | 'list';
 
@@ -46,6 +36,19 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const insets = useSafeAreaInsets();
+  const responsive = useResponsive();
+  const s = responsive.spacingScale;
+
+  // Dynamic layout values based on screen size
+  const GRID_PADDING = responsive.screenHorizontal;
+  const GRID_GAP = responsive.gridGap;
+  const DRAWER_WIDTH = responsive.width * responsive.drawerWidthRatio;
+  const LIST_THUMB_SIZE = responsive.listThumbSize;
+  const LIST_THUMB_RADIUS = Math.round(8 * s);
+  const grid2Columns = responsive.grid2Columns;
+  const GRID2_CARD_WIDTH = Math.floor(
+    (responsive.width - GRID_PADDING * 2 - GRID_GAP * (grid2Columns - 1)) / grid2Columns
+  );
 
   const selectedCollectionId = useAppStore((state) => state.selectedCollectionId);
   const setSelectedCollectionId = useAppStore((state) => state.setSelectedCollectionId);
@@ -61,7 +64,7 @@ export default function HomeScreen() {
   const [labelModalVisible, setLabelModalVisible] = useState(false);
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
-  const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+  const slideAnim = useRef(new Animated.Value(-9999)).current;
 
   // Collect all labels from visible cards
   const availableLabels = useMemo(() => {
@@ -150,7 +153,7 @@ export default function HomeScreen() {
     }).start(() => {
       setDrawerVisible(false);
     });
-  }, [slideAnim]);
+  }, [slideAnim, DRAWER_WIDTH]);
 
   const handleSelectCollection = useCallback(
     (id: string | null) => {
@@ -240,7 +243,7 @@ export default function HomeScreen() {
             </View>
           ) : item.favicon ? (
             <View style={[styles.cardThumbnailWrap, { backgroundColor: colors.groupBackground }]}>
-              <Image source={{ uri: item.favicon }} style={styles.faviconIcon} resizeMode="contain" />
+              <Image source={{ uri: item.favicon }} style={{ width: responsive.faviconSize, height: responsive.faviconSize, borderRadius: 8 }} resizeMode="contain" />
             </View>
           ) : (
             <View style={[styles.cardThumbnailWrap, { backgroundColor: colors.groupBackground }]}>
@@ -277,7 +280,7 @@ export default function HomeScreen() {
   const renderGrid2Card = (item: Card) => {
     const collection = getCollectionForCard(item.collectionId);
     return (
-      <View key={item.id} style={{ width: GRID2_CARD_WIDTH }}>
+      <View key={item.id} style={{ width: GRID2_CARD_WIDTH, maxWidth: GRID2_CARD_WIDTH }}>
         {isSelectMode ? (
           <Pressable
             style={({ pressed }) => [
@@ -395,7 +398,7 @@ export default function HomeScreen() {
           onLongPress={() => handleCardLongPress(item)}
           delayLongPress={500}
         >
-          <View style={styles.listCardInner}>
+          <View style={[styles.listCardInner, { minHeight: LIST_THUMB_SIZE + Spacing.cellVertical * 2 }]}>
             {isSelectMode && (
               <View style={[styles.selectBadgeList, { backgroundColor: isSelected ? colors.tint : colors.border }]}>
                 {isSelected && <ThemedText style={styles.selectBadgeCheckSmall}>✓</ThemedText>}
@@ -404,15 +407,15 @@ export default function HomeScreen() {
             {item.thumbnail ? (
               <Image
                 source={{ uri: item.thumbnail }}
-                style={[styles.listThumb, { backgroundColor: colors.groupBackground }]}
+                style={[styles.listThumb, { backgroundColor: colors.groupBackground, width: LIST_THUMB_SIZE, height: LIST_THUMB_SIZE, borderRadius: LIST_THUMB_RADIUS }]}
                 resizeMode="cover"
               />
             ) : item.favicon ? (
-              <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground }]}>
-                <Image source={{ uri: item.favicon }} style={styles.faviconIconSmall} resizeMode="contain" />
+              <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground, width: LIST_THUMB_SIZE, height: LIST_THUMB_SIZE, borderRadius: LIST_THUMB_RADIUS }]}>
+                <Image source={{ uri: item.favicon }} style={{ width: responsive.faviconSizeSmall, height: responsive.faviconSizeSmall, borderRadius: 6 }} resizeMode="contain" />
               </View>
             ) : (
-              <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground }]}>
+              <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground, width: LIST_THUMB_SIZE, height: LIST_THUMB_SIZE, borderRadius: LIST_THUMB_RADIUS }]}>
                 <ThemedText style={styles.listPlaceholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
               </View>
             )}
@@ -483,6 +486,7 @@ export default function HomeScreen() {
           styles.drawerPanel,
           {
             backgroundColor: colors.groupBackground,
+            width: DRAWER_WIDTH,
             transform: [{ translateX: slideAnim }],
           },
         ]}
@@ -780,11 +784,11 @@ export default function HomeScreen() {
       )}
 
       {/* Card feed */}
-      <ScrollView contentContainerStyle={styles.feedContent}>
+      <ScrollView contentContainerStyle={[styles.feedContent, { padding: GRID_PADDING }]}>
         {filteredCards.length === 0 ? (
           renderEmptyState()
         ) : viewMode === 'grid2' ? (
-          <View style={styles.grid2Container}>
+          <View style={[styles.grid2Container, { gap: GRID_GAP }]}>
             {filteredCards.map(renderGrid2Card)}
           </View>
         ) : viewMode === 'list' ? (
@@ -969,7 +973,6 @@ const styles = StyleSheet.create({
 
   // ---- Feed ----
   feedContent: {
-    padding: Spacing.screenHorizontal,
     paddingBottom: 24,
     flexGrow: 1,
   },
@@ -1026,7 +1029,6 @@ const styles = StyleSheet.create({
   grid2Container: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: GRID_GAP,
   },
   grid2Card: {
     borderRadius: Spacing.cardRadius,
@@ -1076,18 +1078,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: Spacing.cellVertical,
-    minHeight: LIST_THUMB_SIZE + Spacing.cellVertical * 2,
   },
   listThumb: {
-    width: LIST_THUMB_SIZE,
-    height: LIST_THUMB_SIZE,
-    borderRadius: LIST_THUMB_RADIUS,
     flexShrink: 0,
   },
   listThumbPlaceholder: {
-    width: LIST_THUMB_SIZE,
-    height: LIST_THUMB_SIZE,
-    borderRadius: LIST_THUMB_RADIUS,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
@@ -1244,7 +1239,6 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     left: 0,
-    width: DRAWER_WIDTH,
     shadowColor: '#000',
     shadowOffset: { width: 4, height: 0 },
     shadowOpacity: 0.18,
