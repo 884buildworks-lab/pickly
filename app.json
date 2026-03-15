@@ -2,7 +2,7 @@
   "expo": {
     "name": "pickly",
     "slug": "pickly",
-    "version": "1.6.0",
+    "version": "1.8.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pickly",
@@ -38,17 +38,6 @@
             "BROWSABLE",
             "DEFAULT"
           ]
-        },
-        {
-          "action": "SEND",
-          "category": [
-            "DEFAULT"
-          ],
-          "data": [
-            {
-              "mimeType": "text/plain"
-            }
-          ]
         }
       ]
     },
@@ -75,6 +64,15 @@
         {
           "androidAppId": "ca-app-pub-3940256099942544~3347511713",
           "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+        }
+      ],
+      [
+        "expo-share-intent",
+        {
+          "androidIntentFilters": ["text/*"],
+          "androidMainActivityAttributes": {
+            "android:launchMode": "singleTask"
+          }
         }
       ]
     ],

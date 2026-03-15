@@ -13,6 +13,7 @@ interface CardState {
   deleteCardsByCollectionId: (collectionId: string) => void;
   getCardById: (id: string) => Card | undefined;
   getCardsByCollectionId: (collectionId: string) => Card[];
+  markAsRead: (id: string) => void;
   // Label helpers
   getAllLabels: () => string[];
 
@@ -35,6 +36,7 @@ export const useCardStore = create<CardState>()(
         const newCard: Card = {
           ...input,
           id: generateId(),
+          isRead: false,
           createdAt: now,
           updatedAt: now,
         };
@@ -61,6 +63,14 @@ export const useCardStore = create<CardState>()(
       deleteCardsByCollectionId: (collectionId) => {
         set((state) => ({
           cards: state.cards.filter((c) => c.collectionId !== collectionId),
+        }));
+      },
+
+      markAsRead: (id) => {
+        set((state) => ({
+          cards: state.cards.map((c) =>
+            c.id === id && !c.isRead ? { ...c, isRead: true } : c
+          ),
         }));
       },
 

@@ -15,9 +15,10 @@ export interface Card {
   labels: string[];
   checklist: ChecklistItem[];
   images: string[];
+  isRead: boolean;
   createdAt: number;
   updatedAt: number;
 }
 
-export type CreateCardInput = Omit<Card, 'id' | 'createdAt' | 'updatedAt'>;
+export type CreateCardInput = Omit<Card, 'id' | 'isRead' | 'createdAt' | 'updatedAt'>;
 export type UpdateCardInput = Partial<Omit<Card, 'id' | 'createdAt' | 'updatedAt'>>;

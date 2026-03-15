@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
+export type ViewMode = 'grid1' | 'grid2' | 'list';
 
 interface AppState {
   hasCompletedOnboarding: boolean;
@@ -19,6 +20,9 @@ interface AppState {
   // 保存時にオフラインDLを自動実行するか
   autoDownload: boolean;
   setAutoDownload: (value: boolean) => void;
+  // ホーム画面のビュー形式
+  viewMode: ViewMode;
+  setViewMode: (mode: ViewMode) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -34,6 +38,8 @@ export const useAppStore = create<AppState>()(
       setSelectedCollectionId: (id) => set({ selectedCollectionId: id }),
       autoDownload: false,
       setAutoDownload: (value) => set({ autoDownload: value }),
+      viewMode: 'grid1',
+      setViewMode: (mode) => set({ viewMode: mode }),
     }),
     {
       name: 'pickly-app',
@@ -42,6 +48,7 @@ export const useAppStore = create<AppState>()(
         hasCompletedOnboarding: state.hasCompletedOnboarding,
         themeMode: state.themeMode,
         autoDownload: state.autoDownload,
+        viewMode: state.viewMode,
         // sharedUrl は永続化しない
       }),
     }

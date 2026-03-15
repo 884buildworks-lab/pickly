@@ -259,7 +259,7 @@ Card {
 
 ### /release
 
-リリーススキル。バージョンを上げてタグを打ち、EASビルドを実行する。
+本番リリーススキル。バージョンを上げてタグを打ち、EASビルドを実行する。
 
 手順:
 1. ユーザーにバージョンの種類を確認する（patch / minor / major）
@@ -272,3 +272,21 @@ Card {
 5. `git push origin main && git push origin vX.X.X` でリモートにpushする
 6. `eas build --platform android --profile production` でAABビルドを実行する
 7. ビルド開始を確認して完了を報告する
+
+### /dev-update
+
+開発ブランチへのマイナーアップデートスキル。変更をバージョンバンプしてdevelopにプッシュする。
+
+手順:
+1. ユーザーにバージョンの種類を確認する（patch / minor / major）
+   - patch: バグ修正
+   - minor: 機能追加（デフォルト）
+   - major: 大きな変更
+2. `git diff --stat` で変更内容を確認する
+3. `app.json` の `version` フィールドを更新する
+4. 変更されたファイルをすべてステージングする
+5. コミットメッセージを作成する（形式: `feat: 変更内容の要約 (vX.X.X)`）
+   - patch の場合は `fix:` プレフィックスを使用する
+6. `git push origin develop` でリモートにpushする
+7. ユーザーにビルドが必要か確認する
+   - 必要な場合: `eas build --platform android --profile production --non-interactive` をバックグラウンドで実行する

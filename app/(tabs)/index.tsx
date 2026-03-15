@@ -21,10 +21,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticLight, hapticWarning } from '@/utils/haptics';
 import { useResponsive, scale } from '@/hooks/use-responsive';
 import { UNCATEGORIZED_ID, UNCATEGORIZED_ICON, UNCATEGORIZED_LABEL } from '@/constants/collections';
-import AdBanner from '@/components/ad-banner';
 import type { Card, Collection } from '@/types';
-
-type ViewMode = 'grid1' | 'grid2' | 'list';
+import type { ViewMode } from '@/store/app-store';
 
 const VIEW_MODE_ICONS: Record<ViewMode, string> = {
   grid1: '▤',
@@ -58,8 +56,9 @@ export default function HomeScreen() {
   const deleteCard = useCardStore((state) => state.deleteCard);
   const cacheEntries = useCacheStore((state) => state.entries);
 
+  const viewMode = useAppStore((state) => state.viewMode);
+  const setViewMode = useAppStore((state) => state.setViewMode);
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('grid1');
   const [labelFilters, setLabelFilters] = useState<Set<string>>(new Set());
   const [labelModalVisible, setLabelModalVisible] = useState(false);
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -237,24 +236,32 @@ export default function HomeScreen() {
               {isSelected && <ThemedText style={styles.selectBadgeCheck}>✓</ThemedText>}
             </View>
           )}
-          {item.thumbnail ? (
-            <View style={[styles.cardThumbnailWrap, { backgroundColor: colors.groupBackground }]}>
-              <Image source={{ uri: item.thumbnail }} style={styles.cardThumbnail} resizeMode="cover" />
-            </View>
-          ) : item.favicon ? (
-            <View style={[styles.cardThumbnailWrap, { backgroundColor: colors.groupBackground }]}>
-              <Image source={{ uri: item.favicon }} style={{ width: responsive.faviconSize, height: responsive.faviconSize, borderRadius: 8 }} resizeMode="contain" />
-            </View>
-          ) : (
-            <View style={[styles.cardThumbnailWrap, { backgroundColor: colors.groupBackground }]}>
-              <ThemedText style={styles.placeholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
-            </View>
-          )}
+          <View style={styles.thumbContainer}>
+            {item.thumbnail ? (
+              <View style={[styles.cardThumbnailWrap, { backgroundColor: colors.groupBackground }]}>
+                <Image source={{ uri: item.thumbnail }} style={styles.cardThumbnail} resizeMode="cover" />
+              </View>
+            ) : item.favicon ? (
+              <View style={[styles.cardThumbnailWrap, { backgroundColor: colors.groupBackground }]}>
+                <Image source={{ uri: item.favicon }} style={{ width: responsive.faviconSize, height: responsive.faviconSize, borderRadius: 8 }} resizeMode="contain" />
+              </View>
+            ) : (
+              <View style={[styles.cardThumbnailWrap, { backgroundColor: colors.groupBackground }]}>
+                <ThemedText style={styles.placeholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
+              </View>
+            )}
+            {item.isRead === false && (
+              <View style={[styles.unreadDotOverlay, { backgroundColor: colors.tint }]} />
+            )}
+          </View>
           <View style={styles.cardBody}>
             <ThemedText style={styles.cardTitle} numberOfLines={2}>
               {item.title || 'タイトルなし'}
             </ThemedText>
             <View style={styles.cardMeta}>
+              {item.isRead === false && (
+                <ThemedText style={styles.newText}>NEW</ThemedText>
+              )}
 {cacheEntries[item.id] && (
                 <View style={styles.dlBadge}>
                   <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
@@ -296,24 +303,32 @@ export default function HomeScreen() {
             <View style={[styles.selectBadgeSmall, { backgroundColor: selectedCardIds.has(item.id) ? colors.tint : colors.border }]}>
               {selectedCardIds.has(item.id) && <ThemedText style={styles.selectBadgeCheckSmall}>✓</ThemedText>}
             </View>
-            {item.thumbnail ? (
-              <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
-                <Image source={{ uri: item.thumbnail }} style={styles.grid2ThumbImg} resizeMode="cover" />
-              </View>
-            ) : item.favicon ? (
-              <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
-                <Image source={{ uri: item.favicon }} style={styles.faviconIconSmall} resizeMode="contain" />
-              </View>
-            ) : (
-              <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
-                <ThemedText style={styles.grid2PlaceholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
-              </View>
-            )}
+            <View style={styles.thumbContainer}>
+              {item.thumbnail ? (
+                <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
+                  <Image source={{ uri: item.thumbnail }} style={styles.grid2ThumbImg} resizeMode="cover" />
+                </View>
+              ) : item.favicon ? (
+                <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
+                  <Image source={{ uri: item.favicon }} style={styles.faviconIconSmall} resizeMode="contain" />
+                </View>
+              ) : (
+                <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
+                  <ThemedText style={styles.grid2PlaceholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
+                </View>
+              )}
+              {item.isRead === false && (
+                <View style={[styles.unreadDotOverlay, { backgroundColor: colors.tint }]} />
+              )}
+            </View>
             <View style={styles.grid2Body}>
               <ThemedText style={styles.grid2Title} numberOfLines={2}>
                 {item.title || 'タイトルなし'}
               </ThemedText>
               <View style={styles.cardMeta}>
+                {item.isRead === false && (
+                  <ThemedText style={styles.newText}>NEW</ThemedText>
+                )}
 {cacheEntries[item.id] && (
                   <View style={styles.dlBadge}>
                     <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
@@ -342,24 +357,32 @@ export default function HomeScreen() {
             onLongPress={() => handleCardLongPress(item)}
             delayLongPress={500}
           >
-            {item.thumbnail ? (
-              <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
-                <Image source={{ uri: item.thumbnail }} style={styles.grid2ThumbImg} resizeMode="cover" />
-              </View>
-            ) : item.favicon ? (
-              <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
-                <Image source={{ uri: item.favicon }} style={styles.faviconIconSmall} resizeMode="contain" />
-              </View>
-            ) : (
-              <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
-                <ThemedText style={styles.grid2PlaceholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
-              </View>
-            )}
+            <View style={styles.thumbContainer}>
+              {item.thumbnail ? (
+                <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
+                  <Image source={{ uri: item.thumbnail }} style={styles.grid2ThumbImg} resizeMode="cover" />
+                </View>
+              ) : item.favicon ? (
+                <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
+                  <Image source={{ uri: item.favicon }} style={styles.faviconIconSmall} resizeMode="contain" />
+                </View>
+              ) : (
+                <View style={[styles.grid2Thumb, { backgroundColor: colors.groupBackground }]}>
+                  <ThemedText style={styles.grid2PlaceholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
+                </View>
+              )}
+              {item.isRead === false && (
+                <View style={[styles.unreadDotOverlay, { backgroundColor: colors.tint }]} />
+              )}
+            </View>
             <View style={styles.grid2Body}>
               <ThemedText style={styles.grid2Title} numberOfLines={2}>
                 {item.title || 'タイトルなし'}
               </ThemedText>
               <View style={styles.cardMeta}>
+                {item.isRead === false && (
+                  <ThemedText style={styles.newText}>NEW</ThemedText>
+                )}
 {cacheEntries[item.id] && (
                   <View style={styles.dlBadge}>
                     <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
@@ -404,26 +427,34 @@ export default function HomeScreen() {
                 {isSelected && <ThemedText style={styles.selectBadgeCheckSmall}>✓</ThemedText>}
               </View>
             )}
-            {item.thumbnail ? (
-              <Image
-                source={{ uri: item.thumbnail }}
-                style={[styles.listThumb, { backgroundColor: colors.groupBackground, width: LIST_THUMB_SIZE, height: LIST_THUMB_SIZE, borderRadius: LIST_THUMB_RADIUS }]}
-                resizeMode="cover"
-              />
-            ) : item.favicon ? (
-              <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground, width: LIST_THUMB_SIZE, height: LIST_THUMB_SIZE, borderRadius: LIST_THUMB_RADIUS }]}>
-                <Image source={{ uri: item.favicon }} style={{ width: responsive.faviconSizeSmall, height: responsive.faviconSizeSmall, borderRadius: 6 }} resizeMode="contain" />
-              </View>
-            ) : (
-              <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground, width: LIST_THUMB_SIZE, height: LIST_THUMB_SIZE, borderRadius: LIST_THUMB_RADIUS }]}>
-                <ThemedText style={styles.listPlaceholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
-              </View>
-            )}
+            <View style={styles.thumbContainer}>
+              {item.thumbnail ? (
+                <Image
+                  source={{ uri: item.thumbnail }}
+                  style={[styles.listThumb, { backgroundColor: colors.groupBackground, width: LIST_THUMB_SIZE, height: LIST_THUMB_SIZE, borderRadius: LIST_THUMB_RADIUS }]}
+                  resizeMode="cover"
+                />
+              ) : item.favicon ? (
+                <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground, width: LIST_THUMB_SIZE, height: LIST_THUMB_SIZE, borderRadius: LIST_THUMB_RADIUS }]}>
+                  <Image source={{ uri: item.favicon }} style={{ width: responsive.faviconSizeSmall, height: responsive.faviconSizeSmall, borderRadius: 6 }} resizeMode="contain" />
+                </View>
+              ) : (
+                <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground, width: LIST_THUMB_SIZE, height: LIST_THUMB_SIZE, borderRadius: LIST_THUMB_RADIUS }]}>
+                  <ThemedText style={styles.listPlaceholderEmoji}>{collection?.icon ?? '🔗'}</ThemedText>
+                </View>
+              )}
+              {item.isRead === false && (
+                <View style={[styles.unreadDotOverlay, { backgroundColor: colors.tint }]} />
+              )}
+            </View>
             <View style={styles.listBody}>
               <ThemedText style={styles.listTitle} numberOfLines={2}>
                 {item.title || 'タイトルなし'}
               </ThemedText>
               <View style={styles.cardMeta}>
+                {item.isRead === false && (
+                  <ThemedText style={styles.newText}>NEW</ThemedText>
+                )}
 {cacheEntries[item.id] && (
                   <View style={styles.dlBadge}>
                     <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
@@ -802,7 +833,6 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      <AdBanner />
       {renderDrawer()}
     </ThemedView>
   );
@@ -1113,6 +1143,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 2,
+  },
+  thumbContainer: {
+    position: 'relative' as const,
+  },
+  unreadDotOverlay: {
+    position: 'absolute' as const,
+    top: 6,
+    left: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  newText: {
+    color: '#F5A623',
+    fontSize: 9,
+    fontWeight: '700',
   },
   dlBadge: {
     backgroundColor: Colors.light.tint,

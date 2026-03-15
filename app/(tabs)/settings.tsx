@@ -2,7 +2,8 @@ import { StyleSheet, ScrollView, Pressable, Alert, Linking, View, Switch } from 
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useCollectionStore, useCardStore, useAppStore } from '@/store';
+import { useMemo } from 'react';
+import { useCollectionStore, useCardStore, useAppStore, useCacheStore } from '@/store';
 import type { ThemeMode } from '@/store/app-store';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -60,6 +61,14 @@ function Cell({ label, value, destructive, onPress, showChevron = false }: CellP
   );
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(i === 0 ? 0 : 1)} ${sizes[i]}`;
+}
+
 // ---- Main screen ----
 
 export default function SettingsScreen() {
@@ -69,6 +78,11 @@ export default function SettingsScreen() {
 
   const collections = useCollectionStore((state) => state.collections);
   const cards = useCardStore((state) => state.cards);
+  const cacheEntries = useCacheStore((state) => state.entries);
+
+  const totalDLSize = useMemo(() => {
+    return Object.values(cacheEntries).reduce((sum, entry) => sum + (entry.sizeBytes ?? 0), 0);
+  }, [cacheEntries]);
   const setHasCompletedOnboarding = useAppStore((state) => state.setHasCompletedOnboarding);
   const themeMode = useAppStore((state) => state.themeMode);
   const setThemeMode = useAppStore((state) => state.setThemeMode);
@@ -166,6 +180,15 @@ export default function SettingsScreen() {
               カード
             </ThemedText>
           </View>
+          <View style={[styles.statDivider, { backgroundColor: colors.separator }]} />
+          <View style={styles.statCell}>
+            <ThemedText style={[styles.statNumber, { color: colors.text }]}>
+              {formatBytes(totalDLSize)}
+            </ThemedText>
+            <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>
+              DLデータ
+            </ThemedText>
+          </View>
         </View>
       </View>
 
@@ -247,16 +270,7 @@ export default function SettingsScreen() {
         <Cell label="フレームワーク" value="Expo + React Native" />
       </View>
 
-      {/* ---- About ---- */}
-      <SectionHeader label="Picklyについて" />
-      <View style={[styles.group, { backgroundColor: colors.card }]}>
-        <ThemedText style={[styles.aboutText, { color: colors.textSecondary }]}>
-          Picklyは、「候補集め → 比較 → 決定」を直感的に行えるURL保存＆カード管理アプリです。
-          プレゼント探し・旅行の宿比較など、あらゆる「選ぶ」をサポートします。
-        </ThemedText>
-      </View>
-
-      {/* ---- Legal ---- */}
+{/* ---- Legal ---- */}
       <SectionHeader label="法的情報" />
       <View style={[styles.group, { backgroundColor: colors.card }]}>
         <Cell label="プライバシーポリシー" onPress={handleOpenPrivacyPolicy} showChevron />
@@ -381,13 +395,6 @@ const styles = StyleSheet.create({
   },
   themeSegmentText: {
     ...Typography.subhead,
-  },
-
-  // About text
-  aboutText: {
-    ...Typography.subhead,
-    lineHeight: 22,
-    padding: Spacing.screenHorizontal,
   },
 
   bottomPad: {

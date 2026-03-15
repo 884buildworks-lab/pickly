@@ -2,8 +2,8 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo } from 'react';
-import { Linking, useColorScheme as useSystemColorScheme } from 'react-native';
-import * as ExpoLinking from 'expo-linking';
+import { useColorScheme as useSystemColorScheme } from 'react-native';
+import { useShareIntent } from 'expo-share-intent';
 import 'react-native-reanimated';
 
 import { useAppStore } from '@/store';
@@ -21,42 +21,28 @@ export default function RootLayout() {
     return themeMode;
   }, [themeMode, systemColorScheme]);
 
-  // 共有されたURLを処理
+  // expo-share-intent で共有されたコンテンツを受信
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
+
   useEffect(() => {
-    const handleUrl = (event: { url: string }) => {
-      const url = event.url;
-      // pickly:// スキームの場合は内部ナビゲーション
-      if (url.startsWith('pickly://')) {
-        return;
-      }
-      // http/https の場合は共有されたURL
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        setSharedUrl(url);
-        router.push('/save-modal');
+    if (!hasShareIntent || !shareIntent) return;
+
+    // テキスト（URL）を受け取った場合
+    const sharedText = shareIntent.text ?? shareIntent.webUrl ?? '';
+    if (sharedText) {
+      // テキストからURLを抽出
+      const urlMatch = sharedText.match(/https?:\/\/[^\s]+/);
+      if (urlMatch) {
+        setSharedUrl(urlMatch[0]);
       } else {
-        // テキストから URL を抽出 (Android SEND intent)
-        const urlMatch = url.match(/https?:\/\/[^\s]+/);
-        if (urlMatch) {
-          setSharedUrl(urlMatch[0]);
-          router.push('/save-modal');
-        }
+        // URLが見つからなければテキストをそのまま設定
+        setSharedUrl(sharedText);
       }
-    };
+      router.push('/save-modal');
+    }
 
-    // アプリ起動時のURLをチェック
-    ExpoLinking.getInitialURL().then((url) => {
-      if (url) {
-        handleUrl({ url });
-      }
-    });
-
-    // URLイベントをリスン
-    const subscription = Linking.addEventListener('url', handleUrl);
-
-    return () => {
-      subscription.remove();
-    };
-  }, [setSharedUrl]);
+    resetShareIntent();
+  }, [hasShareIntent, shareIntent, setSharedUrl, resetShareIntent]);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>

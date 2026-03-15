@@ -340,20 +340,28 @@ export default function CollectionDetailScreen() {
             {isSelected && <ThemedText style={styles.checkmark}>✓</ThemedText>}
           </View>
         )}
-        {item.thumbnail ? (
-          <View style={[styles.grid1ThumbWrap, { backgroundColor: colors.groupBackground }]}>
-            <Image source={{ uri: item.thumbnail }} style={styles.grid1Thumb} resizeMode="contain" />
-          </View>
-        ) : (
-          <View style={[styles.grid1ThumbWrap, { backgroundColor: colors.groupBackground }]}>
-            <ThemedText style={styles.thumbEmoji}>🔗</ThemedText>
-          </View>
-        )}
+        <View style={styles.thumbContainer}>
+          {item.thumbnail ? (
+            <View style={[styles.grid1ThumbWrap, { backgroundColor: colors.groupBackground }]}>
+              <Image source={{ uri: item.thumbnail }} style={styles.grid1Thumb} resizeMode="contain" />
+            </View>
+          ) : (
+            <View style={[styles.grid1ThumbWrap, { backgroundColor: colors.groupBackground }]}>
+              <ThemedText style={styles.thumbEmoji}>🔗</ThemedText>
+            </View>
+          )}
+          {item.isRead === false && (
+            <View style={[styles.unreadDotOverlay, { backgroundColor: colors.tint }]} />
+          )}
+        </View>
         <View style={styles.grid1Content}>
           <ThemedText style={[styles.grid1Title, { color: colors.text }]} numberOfLines={2}>
             {item.title || 'タイトルなし'}
           </ThemedText>
           <View style={styles.cardMeta}>
+            {item.isRead === false && (
+              <ThemedText style={styles.newText}>NEW</ThemedText>
+            )}
 {cacheEntries[item.id] && (
               <View style={styles.dlBadge}>
                 <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
@@ -400,20 +408,28 @@ export default function CollectionDetailScreen() {
             {isSelected && <ThemedText style={styles.checkmarkSmall}>✓</ThemedText>}
           </View>
         )}
-        {item.thumbnail ? (
-          <View style={[styles.thumbPlaceholder, { backgroundColor: colors.groupBackground }]}>
-            <Image source={{ uri: item.thumbnail }} style={styles.thumbImage} resizeMode="contain" />
-          </View>
-        ) : (
-          <View style={[styles.thumbPlaceholder, { backgroundColor: colors.groupBackground }]}>
-            <ThemedText style={styles.thumbEmoji}>🔗</ThemedText>
-          </View>
-        )}
+        <View style={styles.thumbContainer}>
+          {item.thumbnail ? (
+            <View style={[styles.thumbPlaceholder, { backgroundColor: colors.groupBackground }]}>
+              <Image source={{ uri: item.thumbnail }} style={styles.thumbImage} resizeMode="contain" />
+            </View>
+          ) : (
+            <View style={[styles.thumbPlaceholder, { backgroundColor: colors.groupBackground }]}>
+              <ThemedText style={styles.thumbEmoji}>🔗</ThemedText>
+            </View>
+          )}
+          {item.isRead === false && (
+            <View style={[styles.unreadDotOverlay, { backgroundColor: colors.tint }]} />
+          )}
+        </View>
         <View style={styles.cardContent}>
           <ThemedText style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>
             {item.title || 'タイトルなし'}
           </ThemedText>
           <View style={styles.cardMeta}>
+            {item.isRead === false && (
+              <ThemedText style={styles.newText}>NEW</ThemedText>
+            )}
 {cacheEntries[item.id] && (
               <View style={styles.dlBadge}>
                 <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
@@ -459,22 +475,30 @@ export default function CollectionDetailScreen() {
             {isSelected && <ThemedText style={styles.checkmarkSmall}>✓</ThemedText>}
           </View>
         )}
-        {item.thumbnail ? (
-          <Image
-            source={{ uri: item.thumbnail }}
-            style={[styles.listThumb, { width: responsive.listThumbSize * 0.78, height: responsive.listThumbSize * 0.78, borderRadius: Math.round(8 * responsive.spacingScale) }]}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground, width: responsive.listThumbSize * 0.78, height: responsive.listThumbSize * 0.78, borderRadius: Math.round(8 * responsive.spacingScale) }]}>
-            <ThemedText style={styles.listThumbText}>🔗</ThemedText>
-          </View>
-        )}
+        <View style={styles.thumbContainer}>
+          {item.thumbnail ? (
+            <Image
+              source={{ uri: item.thumbnail }}
+              style={[styles.listThumb, { width: responsive.listThumbSize * 0.78, height: responsive.listThumbSize * 0.78, borderRadius: Math.round(8 * responsive.spacingScale) }]}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.listThumbPlaceholder, { backgroundColor: colors.groupBackground, width: responsive.listThumbSize * 0.78, height: responsive.listThumbSize * 0.78, borderRadius: Math.round(8 * responsive.spacingScale) }]}>
+              <ThemedText style={styles.listThumbText}>🔗</ThemedText>
+            </View>
+          )}
+          {item.isRead === false && (
+            <View style={[styles.unreadDotOverlay, { backgroundColor: colors.tint }]} />
+          )}
+        </View>
         <View style={styles.listCardContent}>
           <ThemedText style={[styles.listCardTitle, { color: colors.text }]} numberOfLines={1}>
             {item.title || 'タイトルなし'}
           </ThemedText>
           <View style={styles.listCardMeta}>
+            {item.isRead === false && (
+              <ThemedText style={styles.newText}>NEW</ThemedText>
+            )}
 {cacheEntries[item.id] && (
               <View style={styles.dlBadge}>
                 <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
@@ -525,6 +549,9 @@ export default function CollectionDetailScreen() {
         <ThemedText style={[styles.headlineTitle, { color: colors.text }]} numberOfLines={1}>
           {item.title || 'タイトルなし'}
         </ThemedText>
+        {item.isRead === false && (
+          <ThemedText style={styles.newText}>NEW</ThemedText>
+        )}
         {cacheEntries[item.id] && (
           <View style={styles.dlBadge}>
             <ThemedText style={styles.dlBadgeText}>DL</ThemedText>
@@ -961,7 +988,7 @@ export default function CollectionDetailScreen() {
       </ScrollView>
 
       {renderBulkActionBar()}
-      {!isSelectMode && <AdBanner />}
+      <AdBanner />
     </ThemedView>
   );
 }
@@ -1131,6 +1158,24 @@ const styles = StyleSheet.create({
 
   // Shared meta row
   cardMeta: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
+  thumbContainer: {
+    position: 'relative' as const,
+  },
+  unreadDotOverlay: {
+    position: 'absolute' as const,
+    top: 6,
+    left: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  newText: {
+    color: '#F5A623',
+    fontSize: 9,
+    fontWeight: '700',
+  },
   dlBadge: {
     backgroundColor: Colors.light.tint,
     paddingHorizontal: 5,

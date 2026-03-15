@@ -42,6 +42,7 @@ export default function CardDetailScreen() {
 
   const card = useCardStore((state) => state.cards.find((c) => c.id === id));
   const updateCard = useCardStore((state) => state.updateCard);
+  const markAsRead = useCardStore((state) => state.markAsRead);
   const deleteCard = useCardStore((state) => state.deleteCard);
   const getAllLabels = useCardStore((state) => state.getAllLabels);
   const collections = useCollectionStore((state) => state.collections);
@@ -62,6 +63,7 @@ export default function CardDetailScreen() {
   const [showLabelSuggestions, setShowLabelSuggestions] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [showCachedContent, setShowCachedContent] = useState(false);
+  const [webviewFailed, setWebviewFailed] = useState(false);
 
   const allLabels = useMemo(() => getAllLabels(), [getAllLabels]);
 
@@ -91,6 +93,7 @@ export default function CardDetailScreen() {
 
   const handleOpenUrl = async () => {
     if (card.url) {
+      markAsRead(card.id);
       await WebBrowser.openBrowserAsync(card.url, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
         controlsColor: colors.tint,
@@ -322,7 +325,7 @@ export default function CardDetailScreen() {
                         { backgroundColor: colors.tint },
                         pressed && styles.pressedOpacity,
                       ]}
-                      onPress={() => setShowCachedContent(true)}
+                      onPress={() => { markAsRead(card.id); setWebviewFailed(false); setShowCachedContent(true); }}
                     >
                       <ThemedText style={styles.offlineBtnText}>
                         オフライン表示
@@ -652,8 +655,8 @@ export default function CardDetailScreen() {
         </Pressable>
       </View>
 
-      <AdBanner />
     </ScrollView>
+    <AdBanner />
 
     {/* Offline fullscreen modal */}
     <Modal
@@ -673,11 +676,24 @@ export default function CardDetailScreen() {
             <ThemedText style={[styles.offlineModalCloseText, { color: colors.tint }]}>閉じる</ThemedText>
           </Pressable>
         </View>
-        {cacheEntry && (
+        {card.url && !webviewFailed ? (
           <WebView
-            source={{ html: wrapWithBase(cacheEntry.html, card.url!) }}
+            source={{ uri: card.url }}
+            style={styles.offlineModalWebview}
+            onError={() => setWebviewFailed(true)}
+            onHttpError={() => setWebviewFailed(true)}
+          />
+        ) : cacheEntry ? (
+          <WebView
+            source={{ html: wrapWithBase(cacheEntry.html, card.url ?? '') }}
             style={styles.offlineModalWebview}
           />
+        ) : (
+          <View style={styles.offlineErrorContainer}>
+            <ThemedText style={[styles.offlineErrorText, { color: colors.textSecondary }]}>
+              オフラインのため表示できません
+            </ThemedText>
+          </View>
         )}
       </View>
     </Modal>
@@ -833,6 +849,16 @@ const styles = StyleSheet.create({
   },
   offlineModalWebview: {
     flex: 1,
+  },
+  offlineErrorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  offlineErrorText: {
+    ...Typography.body,
+    textAlign: 'center',
   },
   downloadBtn: {
     paddingVertical: 12,
