@@ -1,7 +1,7 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useNavigationContainerRef } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useColorScheme as useSystemColorScheme } from 'react-native';
 import { useShareIntent } from 'expo-share-intent';
 import 'react-native-reanimated';
@@ -21,11 +21,21 @@ export default function RootLayout() {
     return themeMode;
   }, [themeMode, systemColorScheme]);
 
+  // ナビゲーションの準備完了を追跡
+  const navRef = useNavigationContainerRef();
+  const [isNavReady, setIsNavReady] = useState(false);
+
+  useEffect(() => {
+    if (navRef?.current) {
+      setIsNavReady(true);
+    }
+  }, [navRef?.current]);
+
   // expo-share-intent で共有されたコンテンツを受信
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
 
   useEffect(() => {
-    if (!hasShareIntent || !shareIntent) return;
+    if (!hasShareIntent || !shareIntent || !isNavReady) return;
 
     // テキスト（URL）を受け取った場合
     const sharedText = shareIntent.text ?? shareIntent.webUrl ?? '';
@@ -38,11 +48,12 @@ export default function RootLayout() {
         // URLが見つからなければテキストをそのまま設定
         setSharedUrl(sharedText);
       }
-      router.push('/save-modal');
+      // ナビゲーション準備完了後に遷移
+      setTimeout(() => router.push('/save-modal'), 100);
     }
 
     resetShareIntent();
-  }, [hasShareIntent, shareIntent, setSharedUrl, resetShareIntent]);
+  }, [hasShareIntent, shareIntent, setSharedUrl, resetShareIntent, isNavReady]);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
