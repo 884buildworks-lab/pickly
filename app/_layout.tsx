@@ -1,7 +1,7 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, router, useNavigationContainerRef } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useColorScheme as useSystemColorScheme } from 'react-native';
 import { useShareIntent } from 'expo-share-intent';
 import 'react-native-reanimated';
@@ -26,18 +26,28 @@ export default function RootLayout() {
   const [isNavReady, setIsNavReady] = useState(false);
 
   useEffect(() => {
-    if (navRef?.current) {
+    // 既にreadyならすぐにセット
+    if (navRef?.isReady()) {
       setIsNavReady(true);
+      return;
     }
-  }, [navRef?.current]);
+    // readyになるのを待つ（コールドスタート時はまだreadyではない）
+    const interval = setInterval(() => {
+      if (navRef?.isReady()) {
+        setIsNavReady(true);
+        clearInterval(interval);
+      }
+    }, 50);
+    return () => clearInterval(interval);
+  }, [navRef]);
 
   // expo-share-intent で共有されたコンテンツを受信
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
 
-  useEffect(() => {
-    if (!hasShareIntent || !shareIntent || !isNavReady) return;
+  // 共有インテントを処理する関数
+  const processShareIntent = useCallback(() => {
+    if (!shareIntent) return;
 
-    // テキスト（URL）を受け取った場合
     const sharedText = shareIntent.text ?? shareIntent.webUrl ?? '';
     if (sharedText) {
       // テキストからURLを抽出
@@ -45,15 +55,20 @@ export default function RootLayout() {
       if (urlMatch) {
         setSharedUrl(urlMatch[0]);
       } else {
-        // URLが見つからなければテキストをそのまま設定
         setSharedUrl(sharedText);
       }
-      // ナビゲーション準備完了後に遷移
-      setTimeout(() => router.push('/save-modal'), 100);
+      router.push('/save-modal');
     }
-
     resetShareIntent();
-  }, [hasShareIntent, shareIntent, setSharedUrl, resetShareIntent, isNavReady]);
+  }, [shareIntent, setSharedUrl, resetShareIntent]);
+
+  useEffect(() => {
+    if (!hasShareIntent || !shareIntent) return;
+    if (!isNavReady) return;
+
+    // ナビゲーション準備完了後に遷移
+    processShareIntent();
+  }, [hasShareIntent, shareIntent, isNavReady, processShareIntent]);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
