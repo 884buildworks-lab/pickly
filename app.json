@@ -2,7 +2,7 @@
   "expo": {
     "name": "Atode",
     "slug": "pickly",
-    "version": "1.9.1",
+    "version": "1.9.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pickly",
@@ -21,25 +21,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "intentFilters": [
-        {
-          "action": "VIEW",
-          "autoVerify": true,
-          "data": [
-            {
-              "scheme": "https"
-            },
-            {
-              "scheme": "http"
-            }
-          ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
-        }
-      ]
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
@@ -69,7 +51,9 @@
       [
         "expo-share-intent",
         {
-          "androidIntentFilters": ["text/*"],
+          "androidIntentFilters": [
+            "text/*"
+          ],
           "androidMainActivityAttributes": {
             "android:launchMode": "singleTask"
           }
@@ -82,8 +66,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "e6f55cb6-ea65-4577-a32a-1dc65bbd4baf"
+        "projectId": "89dd0e99-0906-47ec-a4c9-4bf55809ea1d"
       }
-    }
+    },
+    "owner": "kei884"
   }
 }

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
+import { useShareIntentSafe } from '@/hooks/use-share-intent-safe';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -32,6 +33,10 @@ export default function SaveModal() {
   const setLastUsedCollectionId = useCollectionStore((state) => state.setLastUsedCollectionId);
   const addCard = useCardStore((state) => state.addCard);
 
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentSafe({
+    debug: true,
+    resetOnBackground: true,
+  });
   const sharedUrl = useAppStore((state) => state.sharedUrl);
   const setSharedUrl = useAppStore((state) => state.setSharedUrl);
   const autoDownload = useAppStore((state) => state.autoDownload);
@@ -58,6 +63,18 @@ export default function SaveModal() {
       setSharedUrl(null);
     }
   }, [sharedUrl, setSharedUrl]);
+
+  // ShareIntentProviderから共有データを取得
+  useEffect(() => {
+    if (!hasShareIntent || !shareIntent) return;
+
+    const sharedText = shareIntent.webUrl ?? shareIntent.text ?? '';
+    if (sharedText) {
+      const urlMatch = sharedText.match(/https?:\/\/[^\s]+/);
+      setUrl(urlMatch ? urlMatch[0] : sharedText);
+    }
+    resetShareIntent();
+  }, [hasShareIntent, shareIntent, resetShareIntent]);
 
   const fetchMetadata = useCallback(async (inputUrl: string) => {
     if (!isValidUrl(inputUrl)) return;
@@ -103,7 +120,12 @@ export default function SaveModal() {
     }
 
     hapticSuccess();
-    router.back();
+    try {
+      router.back();
+    } catch {
+      // コールドスタートからの共有時にrouterが不安定な場合のフォールバック
+      router.replace('/');
+    }
   };
 
   return (

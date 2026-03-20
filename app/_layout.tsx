@@ -1,9 +1,9 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, router, useNavigationContainerRef } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useColorScheme as useSystemColorScheme } from 'react-native';
-import { useShareIntent } from 'expo-share-intent';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, useColorScheme as useSystemColorScheme } from 'react-native';
+import { ShareIntentModule, getShareExtensionKey } from 'expo-share-intent';
 import 'react-native-reanimated';
 
 import { useAppStore } from '@/store';
@@ -11,9 +11,7 @@ import { useAppStore } from '@/store';
 export default function RootLayout() {
   const systemColorScheme = useSystemColorScheme();
   const themeMode = useAppStore((state) => state.themeMode);
-  const setSharedUrl = useAppStore((state) => state.setSharedUrl);
 
-  // Apply theme based on user preference
   const colorScheme = useMemo(() => {
     if (themeMode === 'system') {
       return systemColorScheme ?? 'light';
@@ -24,14 +22,15 @@ export default function RootLayout() {
   // ナビゲーションの準備完了を追跡
   const navRef = useNavigationContainerRef();
   const [isNavReady, setIsNavReady] = useState(false);
+  // 重複ナビゲーション防止: タイムスタンプベースのデバウンス
+  const lastNavigatedAt = useRef(0);
+  const NAVIGATE_DEBOUNCE_MS = 1500;
 
   useEffect(() => {
-    // 既にreadyならすぐにセット
     if (navRef?.isReady()) {
       setIsNavReady(true);
       return;
     }
-    // readyになるのを待つ（コールドスタート時はまだreadyではない）
     const interval = setInterval(() => {
       if (navRef?.isReady()) {
         setIsNavReady(true);
@@ -41,34 +40,86 @@ export default function RootLayout() {
     return () => clearInterval(interval);
   }, [navRef]);
 
-  // expo-share-intent で共有されたコンテンツを受信
-  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
+  const navigateToSaveModal = () => {
+    const now = Date.now();
+    if (now - lastNavigatedAt.current < NAVIGATE_DEBOUNCE_MS) return;
+    // 既にsave-modal上にいる場合はスキップ
+    try {
+      const state = navRef.getState();
+      const currentRoute = state?.routes[state.routes.length - 1];
+      if (currentRoute?.name === 'save-modal') return;
+    } catch { /* ignore */ }
+    lastNavigatedAt.current = now;
+    router.push('/save-modal');
+  };
 
-  // 共有インテントを処理する関数
-  const processShareIntent = useCallback(() => {
-    if (!shareIntent) return;
-
-    const sharedText = shareIntent.text ?? shareIntent.webUrl ?? '';
-    if (sharedText) {
-      // テキストからURLを抽出
-      const urlMatch = sharedText.match(/https?:\/\/[^\s]+/);
-      if (urlMatch) {
-        setSharedUrl(urlMatch[0]);
-      } else {
-        setSharedUrl(sharedText);
-      }
-      router.push('/save-modal');
-    }
-    resetShareIntent();
-  }, [shareIntent, setSharedUrl, resetShareIntent]);
-
+  // コールドスタート時: ナビゲーション準備完了後に共有インテントをチェック
   useEffect(() => {
-    if (!hasShareIntent || !shareIntent) return;
-    if (!isNavReady) return;
+    if (!isNavReady || !ShareIntentModule) return;
 
-    // ナビゲーション準備完了後に遷移
-    processShareIntent();
-  }, [hasShareIntent, shareIntent, isNavReady, processShareIntent]);
+    const key = getShareExtensionKey();
+    const hasPending = ShareIntentModule.hasShareIntent(key);
+
+    if (hasPending) {
+      let attempts = 0;
+      const tryNavigate = () => {
+        if (Date.now() - lastNavigatedAt.current < NAVIGATE_DEBOUNCE_MS) return;
+        attempts++;
+        try {
+          const state = navRef.getState();
+          const routeNames = state?.routeNames ?? [];
+          if (routeNames.includes('save-modal') || attempts > 10) {
+            navigateToSaveModal();
+          } else {
+            setTimeout(tryNavigate, 50);
+          }
+        } catch {
+          if (attempts <= 10) setTimeout(tryNavigate, 50);
+        }
+      };
+      // 初期遅延を短縮
+      setTimeout(tryNavigate, 100);
+    }
+  }, [isNavReady]);
+
+  // ウォームスタート時: ネイティブモジュールの onStateChange で共有インテントを検知
+  useEffect(() => {
+    if (!ShareIntentModule) return;
+
+    const subscription = ShareIntentModule.addListener('onStateChange', (event) => {
+      if (event.value === 'pending' && isNavReady) {
+        navigateToSaveModal();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [isNavReady]);
+
+  // ウォームスタート時フォールバック: AppStateでフォアグラウンド復帰時にpendingインテントをチェック
+  // (Googleアプリなど、onStateChangeが発火しないケースへの対応)
+  useEffect(() => {
+    if (!ShareIntentModule) return;
+
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active' && isNavReady) {
+        // フォアグラウンド復帰時にpendingチェック（リトライ付き）
+        // 遅いデバイスではintent登録に時間がかかるため最大3回チェック
+        let retries = 0;
+        const checkPending = () => {
+          const key = getShareExtensionKey();
+          if (ShareIntentModule.hasShareIntent(key)) {
+            navigateToSaveModal();
+          } else if (retries < 2) {
+            retries++;
+            setTimeout(checkPending, 300);
+          }
+        };
+        setTimeout(checkPending, 300);
+      }
+    });
+
+    return () => subscription.remove();
+  }, [isNavReady]);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
