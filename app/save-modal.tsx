@@ -7,9 +7,10 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { router } from 'expo-router';
 import { useShareIntentSafe } from '@/hooks/use-share-intent-safe';
+import { ShareIntentModule, getShareExtensionKey } from 'expo-share-intent';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -56,6 +57,41 @@ export default function SaveModal() {
       ? lastUsedCollectionId
       : null
   );
+
+  // --- #7 ストア水和遅延対策 ---
+  // useState の初期化は水和前に実行される場合がある。
+  // コレクションが水和で読み込まれたら、lastUsedCollectionId を再同期する（初回のみ）。
+  const hasInitializedCollection = useRef(false);
+  useEffect(() => {
+    if (hasInitializedCollection.current) return;
+    if (collections.length === 0) return; // まだ水和されていない
+    hasInitializedCollection.current = true;
+    if (lastUsedCollectionId && collections.some((c) => c.id === lastUsedCollectionId)) {
+      setSelectedCollectionId(lastUsedCollectionId);
+    }
+  }, [collections, lastUsedCollectionId]);
+
+  // --- #2 共有インテントデータ到着待ち ---
+  // ナビゲーション（_layout.tsx）がデータ到着より先にモーダルを開くケースへの対策。
+  // ネイティブ側にpendingインテントがある場合のみ待機UIを表示し、データ到着 or 2秒で解除。
+  const [isWaitingForShareData, setIsWaitingForShareData] = useState(() => {
+    try {
+      const key = getShareExtensionKey();
+      return !!ShareIntentModule?.hasShareIntent(key);
+    } catch { return false; }
+  });
+
+  useEffect(() => {
+    if (hasShareIntent && isWaitingForShareData) {
+      setIsWaitingForShareData(false);
+    }
+  }, [hasShareIntent, isWaitingForShareData]);
+
+  useEffect(() => {
+    if (!isWaitingForShareData) return;
+    const timeout = setTimeout(() => setIsWaitingForShareData(false), 2000);
+    return () => clearTimeout(timeout);
+  }, [isWaitingForShareData]);
 
   useEffect(() => {
     if (sharedUrl) {
@@ -120,10 +156,10 @@ export default function SaveModal() {
     }
 
     hapticSuccess();
-    try {
+    if (router.canGoBack()) {
       router.back();
-    } catch {
-      // コールドスタートからの共有時にrouterが不安定な場合のフォールバック
+    } else {
+      // コールドスタートからの共有時にナビゲーション履歴がない場合のフォールバック
       router.replace('/');
     }
   };
@@ -137,6 +173,14 @@ export default function SaveModal() {
       {/* ---- URL ---- */}
       <ThemedText style={[styles.sectionHeader, { color: colors.textSecondary }]}>URL</ThemedText>
       <View style={[styles.formGroup, { backgroundColor: colors.card }]}>
+        {isWaitingForShareData ? (
+          <View style={styles.shareDataLoading}>
+            <ActivityIndicator size="small" color={colors.tint} />
+            <ThemedText style={[styles.shareDataLoadingText, { color: colors.textSecondary }]}>
+              共有データを取得中...
+            </ThemedText>
+          </View>
+        ) : (
         <View style={styles.urlRow}>
           <TextInput
             style={[styles.input, styles.urlInput, { color: colors.text }]}
@@ -152,6 +196,7 @@ export default function SaveModal() {
             <ActivityIndicator style={styles.urlSpinner} size="small" color={colors.tint} />
           )}
         </View>
+        )}
         {urlHasValue && !urlIsValid && (
           <ThemedText style={[styles.urlError, { color: colors.destructive ?? '#FF3B30' }]}>
             有効なURLを入力してください（例: https://...）
@@ -325,6 +370,16 @@ const styles = StyleSheet.create({
   urlSpinner: {
     position: 'absolute',
     right: 14,
+  },
+  shareDataLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 8,
+  },
+  shareDataLoadingText: {
+    fontSize: Typography.body.fontSize,
   },
   memoInput: {
     minHeight: 100,

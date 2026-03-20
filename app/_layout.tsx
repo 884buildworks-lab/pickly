@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { CommonActions, DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, router, useNavigationContainerRef } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -40,10 +40,10 @@ export default function RootLayout() {
     return () => clearInterval(interval);
   }, [navRef]);
 
+  // コールドスタート用: 通常の router.push
   const navigateToSaveModal = () => {
     const now = Date.now();
     if (now - lastNavigatedAt.current < NAVIGATE_DEBOUNCE_MS) return;
-    // 既にsave-modal上にいる場合はスキップ
     try {
       const state = navRef.getState();
       const currentRoute = state?.routes[state.routes.length - 1];
@@ -51,6 +51,32 @@ export default function RootLayout() {
     } catch { /* ignore */ }
     lastNavigatedAt.current = now;
     router.push('/save-modal');
+  };
+
+  // ウォームスタート用: ナビゲーション状態を強制リセットしてから save-modal を開く
+  // (インテント受信でexpo-routerの状態が壊れるケースへの対応)
+  const forceNavigateToSaveModal = () => {
+    const now = Date.now();
+    if (now - lastNavigatedAt.current < NAVIGATE_DEBOUNCE_MS) return;
+
+    // save-modal が既に表示中の場合はナビゲーションをスキップ
+    // → 新しいインテントデータは useShareIntentSafe の onChange 経由で自動反映される
+    try {
+      const state = navRef.getState();
+      const currentRoute = state?.routes[state.routes.length - 1];
+      if (currentRoute?.name === 'save-modal') return;
+    } catch { /* ignore */ }
+
+    lastNavigatedAt.current = now;
+    navRef.dispatch(
+      CommonActions.reset({
+        index: 1,
+        routes: [
+          { name: '(tabs)' },
+          { name: 'save-modal' },
+        ],
+      })
+    );
   };
 
   // コールドスタート時: ナビゲーション準備完了後に共有インテントをチェック
@@ -77,7 +103,6 @@ export default function RootLayout() {
           if (attempts <= 10) setTimeout(tryNavigate, 50);
         }
       };
-      // 初期遅延を短縮
       setTimeout(tryNavigate, 100);
     }
   }, [isNavReady]);
@@ -88,7 +113,8 @@ export default function RootLayout() {
 
     const subscription = ShareIntentModule.addListener('onStateChange', (event) => {
       if (event.value === 'pending' && isNavReady) {
-        navigateToSaveModal();
+        // インテント受信後、expo-routerの処理が落ち着くのを待ってから強制遷移
+        setTimeout(() => forceNavigateToSaveModal(), 500);
       }
     });
 
@@ -102,19 +128,18 @@ export default function RootLayout() {
 
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active' && isNavReady) {
-        // フォアグラウンド復帰時にpendingチェック（リトライ付き）
-        // 遅いデバイスではintent登録に時間がかかるため最大3回チェック
         let retries = 0;
         const checkPending = () => {
           const key = getShareExtensionKey();
           if (ShareIntentModule.hasShareIntent(key)) {
-            navigateToSaveModal();
+            forceNavigateToSaveModal();
           } else if (retries < 2) {
             retries++;
             setTimeout(checkPending, 300);
           }
         };
-        setTimeout(checkPending, 300);
+        // expo-routerのインテント処理が落ち着いてからチェック
+        setTimeout(checkPending, 500);
       }
     });
 
@@ -124,6 +149,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
+        <Stack.Screen name="+not-found" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="collection/[id]" options={{ title: 'コレクション' }} />
         <Stack.Screen name="card/[id]" options={{ title: 'カード詳細' }} />
